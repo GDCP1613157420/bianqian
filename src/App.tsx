@@ -262,42 +262,42 @@ export default function App() {
     if (w) await w.minimize();
   };
 
-  const headerBtnCls = "px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300";
+  const headerBtnCls = "px-2 py-1 text-xs rounded bg-white text-gray-800 hover:bg-emerald-200 border border-emerald-200";
 
   return (
     <>
       {/* 主窗口 */}
-      <div className="h-screen w-full bg-stone-50 flex flex-col text-stone-800 text-sm">
+      <div className="h-screen w-full bg-white flex flex-col text-gray-900 text-sm">
         {/* 顶栏 */}
-        <div className="flex items-center justify-between px-2 py-1.5 bg-stone-100 border-b border-stone-200">
+        <div className="flex items-center justify-between px-2 py-1.5 bg-emerald-100 border-b border-emerald-200">
           <div className="flex items-center gap-1">
             <button
               onClick={() => { setView("list"); setListMode("all"); }}
-              className={`${headerBtnCls} ${view === "list" && listMode === "all" ? "bg-stone-300 font-bold" : ""}`}
+              className={`${headerBtnCls} ${view === "list" && listMode === "all" ? "bg-emerald-200 font-bold" : ""}`}
             >
               📋 全部
             </button>
             <button
               onClick={() => { setView("list"); setListMode("today"); }}
-              className={`${headerBtnCls} ${view === "list" && listMode === "today" ? "bg-stone-300 font-bold" : ""}`}
+              className={`${headerBtnCls} ${view === "list" && listMode === "today" ? "bg-emerald-200 font-bold" : ""}`}
             >
               ⭐ 今天
             </button>
             <button
               onClick={() => setListMode("scheduled")}
-              className={`${headerBtnCls} ${listMode === "scheduled" ? "bg-stone-300 font-bold" : ""}`}
+              className={`${headerBtnCls} ${listMode === "scheduled" ? "bg-emerald-200 font-bold" : ""}`}
             >
               📅 计划
             </button>
             <button
               onClick={() => setView("calendar")}
-              className={`${headerBtnCls} ${view === "calendar" ? "bg-stone-300 font-bold" : ""}`}
+              className={`${headerBtnCls} ${view === "calendar" ? "bg-emerald-200 font-bold" : ""}`}
             >
               🗓 日历
             </button>
             <button
               onClick={() => setView("trash")}
-              className={`${headerBtnCls} ${view === "trash" ? "bg-stone-300 font-bold" : ""}`}
+              className={`${headerBtnCls} ${view === "trash" ? "bg-emerald-200 font-bold" : ""}`}
             >
               🗑 回收
             </button>
@@ -331,28 +331,28 @@ export default function App() {
           {view === "list" && listMode !== "tree" && (
             <>
               {!isTauri() && (
-                <div className="text-[10px] text-stone-400 bg-stone-100 rounded px-2 py-1 mb-2">
+                <div className="text-[10px] text-emerald-700 bg-emerald-50 rounded px-2 py-1 mb-2">
                   💡 浏览器预览：📌 置顶、⏰ 系统通知、📂 本地文件跳转需打包为桌面应用
                 </div>
               )}
               {listMode === "scheduled" && (
-                <div className="mb-2 text-[11px] text-stone-500 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                <div className="mb-2 text-[11px] text-gray-600 bg-blue-50 border border-blue-100 rounded px-2 py-1">
                   📅 按计划开始时间排序（{scheduledNotes.length} 条）
                 </div>
               )}
               {listMode === "today" && (
-                <div className="mb-2 text-[11px] text-stone-500 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                <div className="mb-2 text-[11px] text-gray-600 bg-amber-50 border border-amber-100 rounded px-2 py-1">
                   ⭐ 今天的便签（{todayNotes.length} 条）
                 </div>
               )}
               {sortedDates.length === 0 ? (
-                <div className="text-center text-stone-400 text-sm py-8">
+                <div className="text-center text-gray-500 text-sm py-8">
                   {listMode === "scheduled" ? "暂无计划任务" : "暂无便签，点击下方 + 新建"}
                 </div>
               ) : (
                 sortedDates.map((d) => (
                   <div key={d} className="mb-3">
-                    <div className="text-xs font-bold text-stone-500 mb-1 px-1">
+                    <div className="text-xs font-bold text-gray-600 mb-1 px-1">
                       {formatDateLabel(d)}
                     </div>
                     <div className="space-y-1.5">
@@ -360,26 +360,26 @@ export default function App() {
                         editingId === n.id ? (
                           <div
                             key={n.id}
-                            className="p-2 rounded-lg bg-stone-100 border border-stone-300 space-y-1"
+                            className="p-2 rounded-lg bg-emerald-50 border border-emerald-300 space-y-1"
                           >
                             <input
                               value={editTitle}
                               onChange={(e) => setEditTitle(e.target.value)}
-                              className="w-full text-sm font-bold px-1.5 py-1 rounded border border-stone-200 bg-white"
+                              className="w-full text-sm font-bold px-1.5 py-1 rounded border border-emerald-200 bg-white"
                               placeholder="标题"
                               autoFocus
                             />
                             <textarea
                               value={editBody}
                               onChange={(e) => setEditBody(e.target.value)}
-                              className="w-full text-xs px-1.5 py-1 rounded border border-stone-200 bg-white resize-none"
+                              className="w-full text-xs px-1.5 py-1 rounded border border-emerald-200 bg-white resize-none"
                               placeholder="详情"
                               rows={3}
                             />
                             <div className="flex justify-end gap-1">
                               <button
                                 onClick={() => setEditingId(null)}
-                                className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-600"
+                                className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-700"
                               >
                                 取消
                               </button>
@@ -430,7 +430,7 @@ export default function App() {
         </div>
 
         {/* 底部新建按钮 */}
-        <div className="p-2 border-t border-stone-200 bg-stone-50">
+        <div className="p-2 border-t border-emerald-200 bg-emerald-50">
           {!adding ? (
             <button
               onClick={() => setAdding(true)}
@@ -439,19 +439,19 @@ export default function App() {
               + 新建便签
             </button>
           ) : (
-            <div className="space-y-1.5 bg-white border border-stone-200 rounded-lg p-2">
+            <div className="space-y-1.5 bg-white border border-emerald-200 rounded-lg p-2">
               <input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
                 placeholder="标题（必填或填详情）"
-                className="w-full text-sm font-bold px-2 py-1.5 rounded border border-stone-200 focus:outline-none focus:border-stone-400"
+                className="w-full text-sm font-bold px-2 py-1.5 rounded border border-emerald-200 focus:outline-none focus:border-stone-400"
                 autoFocus
               />
               <textarea
                 value={newBody}
                 onChange={(e) => setNewBody(e.target.value)}
                 placeholder="详情..."
-                className="w-full text-xs px-2 py-1 rounded border border-stone-200 resize-none focus:outline-none focus:border-stone-400"
+                className="w-full text-xs px-2 py-1 rounded border border-emerald-200 resize-none focus:outline-none focus:border-stone-400"
                 rows={3}
               />
 
@@ -459,28 +459,28 @@ export default function App() {
               <div>
                 <button
                   onClick={() => setAddShowSchedule(!addShowSchedule)}
-                  className="text-[11px] text-stone-500 hover:underline"
+                  className="text-[11px] text-gray-600 hover:underline"
                 >
                   📅 工作时间段 {addStart && `(已设置)`}
                 </button>
                 {addShowSchedule && (
-                  <div className="mt-1 space-y-1 bg-stone-50 p-1.5 rounded">
+                  <div className="mt-1 space-y-1 bg-emerald-50 p-1.5 rounded">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-stone-500 w-10">开始</span>
+                      <span className="text-[10px] text-gray-600 w-10">开始</span>
                       <input
                         type="datetime-local"
                         value={addStart}
                         onChange={(e) => setAddStart(e.target.value)}
-                        className="flex-1 text-[11px] rounded border border-stone-200 px-1 py-0.5 bg-white"
+                        className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
                       />
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-stone-500 w-10">结束</span>
+                      <span className="text-[10px] text-gray-600 w-10">结束</span>
                       <input
                         type="datetime-local"
                         value={addEnd}
                         onChange={(e) => setAddEnd(e.target.value)}
-                        className="flex-1 text-[11px] rounded border border-stone-200 px-1 py-0.5 bg-white"
+                        className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
                       />
                     </div>
                   </div>
@@ -491,7 +491,7 @@ export default function App() {
               <div>
                 <button
                   onClick={() => setAddShowReminder(!addShowReminder)}
-                  className="text-[11px] text-stone-500 hover:underline"
+                  className="text-[11px] text-gray-600 hover:underline"
                 >
                   ⏰ 提醒 {addReminder && `(${formatReminderLabel(addReminder)})`}
                 </button>
@@ -511,7 +511,7 @@ export default function App() {
               <div>
                 <button
                   onClick={() => setAddShowRecurrence(!addShowRecurrence)}
-                  className="text-[11px] text-stone-500 hover:underline"
+                  className="text-[11px] text-gray-600 hover:underline"
                 >
                   🔁 长期任务 {addRecurrence && `(${describeRecurrence(addRecurrence)})`}
                 </button>
@@ -528,13 +528,13 @@ export default function App() {
 
               {/* 颜色 */}
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-stone-500">颜色：</span>
+                <span className="text-[11px] text-gray-600">颜色：</span>
                 {(["yellow", "pink", "blue", "green", "purple"] as const).map((c) => (
                   <button
                     key={c}
                     onClick={() => setNewColor(c)}
                     className={`w-5 h-5 rounded-full border-2 ${
-                      newColor === c ? "ring-2 ring-stone-400 border-stone-300" : "border-stone-200"
+                      newColor === c ? "ring-2 ring-stone-400 border-emerald-300" : "border-emerald-200"
                     } ${
                       c === "yellow" ? "bg-yellow-100" :
                       c === "pink" ? "bg-pink-100" :
@@ -560,7 +560,7 @@ export default function App() {
                     setAddShowRecurrence(false);
                     setAddShowSchedule(false);
                   }}
-                  className="px-3 py-1 text-xs rounded bg-stone-200 text-stone-600"
+                  className="px-3 py-1 text-xs rounded bg-emerald-100 text-gray-700"
                 >
                   取消
                 </button>
