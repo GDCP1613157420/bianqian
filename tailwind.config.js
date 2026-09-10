@@ -5,11 +5,12 @@ export default {
     extend: {
       colors: {
         sticky: {
-          yellow: "#fff9c4",
-          orange: "#ffe0b2",
-          green: "#c8e6c9",
-          blue: "#bbdefb",
-          pink: "#f8bbd0",
+          yellow: "#fdf6e3", // 柔和米黄（降饱和度）
+          orange: "#f5e6d3",
+          green: "#e8f0e0",
+          blue: "#e0e8f0",
+          pink: "#f0e0e8",
+          purple: "#e8e0f0",
         },
       },
       fontFamily: {
