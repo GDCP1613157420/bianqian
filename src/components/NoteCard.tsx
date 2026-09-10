@@ -93,7 +93,9 @@ export default function NoteCard({
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    // 点击按钮/输入框时不触发拖动，避免阻止编辑等正常交互
+    const tag = (e.target as HTMLElement).tagName;
+    if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'A') return;
     beginDrag(e.clientX, e.clientY);
   };
   const handlePointerMove = (e: React.PointerEvent) => {
