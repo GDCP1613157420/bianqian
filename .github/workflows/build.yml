@@ -72,4 +72,5 @@ jobs:
             src-tauri/target/release/bundle/nsis/桌面便签.msi
             src-tauri/target/release/桌面便签.exe
         env:
-          GITHUB_TOKEN: *** secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
