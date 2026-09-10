@@ -1,7 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { Note, NoteStatus } from "./types";
-import { loadNotes, saveNotes, generateId, nextOccurrence } from "./storage";
-import { getAppWindow, PreviewWindow } from "./tauri";
+import { loadNotes, saveNotes, generateId } from "./storage";
+import {
+  buildHierarchy,
+  formatDateLabel,
+  todayStr,
+  noteDate,
+  localInputToIso,
+  formatReminderLabel,
+  describeRecurrence,
+} from "./utils";
+import { isTauri, getAppWindow } from "./tauri";
 import NoteCard from "./components/NoteCard";
 import CalendarView from "./components/CalendarView";
 import TrashView from "./components/TrashView";
@@ -9,520 +18,576 @@ import HierarchicalList from "./components/HierarchicalList";
 import DetailPanel from "./components/DetailPanel";
 import ReminderPicker from "./components/ReminderPicker";
 import RecurrenceEditor from "./components/RecurrenceEditor";
-import { showNotification, requestNotificationPermission } from "./notify";
-import { notePreview } from "./storage";
 
 type View = "list" | "calendar" | "trash";
-type ListMode = "today" | "all";
+type ListMode = "today" | "all" | "tree" | "scheduled";
 
 export default function App() {
-  const [notes, setNotes] = useState<Note[]>([]);
+  const [notes, setNotes] = useState<Note[]>(() => loadNotes());
   const [view, setView] = useState<View>("list");
   const [listMode, setListMode] = useState<ListMode>("all");
-  const [selectedDate, setSelectedDate] = useState(() => {
-    const t = new Date();
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  });
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr());
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
-  const [appWindow, setAppWindow] = useState<PreviewWindow | null>(null);
-  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [newColor, setNewColor] = useState<Note["color"]>("yellow");
   const [addShowReminder, setAddShowReminder] = useState(false);
   const [addShowRecurrence, setAddShowRecurrence] = useState(false);
-  const [addReminder, setAddReminder] = useState<string | undefined>();
-  const [addRecurrence, setAddRecurrence] = useState<Note["recurrence"]>();
-  const newTitleRef = useRef<HTMLTextAreaElement | null>(null);
-  const notesRef = useRef(notes);
-  notesRef.current = notes;
+  const [addShowSchedule, setAddShowSchedule] = useState(false);
+  const [addReminder, setAddReminder] = useState<string>("");
+  const [addRecurrence, setAddRecurrence] = useState<import("./types").Recurrence | undefined>();
+  const [addStart, setAddStart] = useState<string>("");
+  const [addEnd, setAddEnd] = useState<string>("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
   const firedRemindersRef = useRef<Set<string>>(new Set());
+  const detailWindowRef = useRef<any>(null);
 
+  // 持久化
   useEffect(() => {
-    setNotes(loadNotes());
-    getAppWindow().then((w) => {
-      setAppWindow(w);
-      if (w) w.setAlwaysOnTop(false);
-    });
+    saveNotes(notes);
+  }, [notes]);
+
+  // 窗口置顶（仅 Tauri）
+  useEffect(() => {
+    if (!isTauri()) return;
+    (async () => {
+      const w = await getAppWindow();
+      if (w) {
+        await w.setAlwaysOnTop(false);
+      }
+    })();
   }, []);
 
-  const persist = (next: Note[]) => {
-    setNotes(next);
-    saveNotes(next);
-  };
-
-  const activeNotes = notes.filter((n) => n.status === "active");
-  const selectedNote = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
-
-  const addNote = () => {
-    const title = newTitle.trim() || "（无标题）";
-    const body = newBody.trim();
-    if (!title && !body) return;
-    const now = new Date().toISOString();
-    const note: Note = {
-      id: generateId(),
-      title,
-      body,
-      createdAt: selectedDate + "T" + new Date().toISOString().split("T")[1],
-      updatedAt: now,
-      status: "active",
-      ...(addReminder ? { reminderAt: addReminder } : {}),
-      ...(addRecurrence ? { recurrence: addRecurrence } : {}),
-    };
-    persist([note, ...notes]);
-    setNewTitle("");
-    setNewBody("");
-    setAdding(false);
-    setAddReminder(undefined);
-    setAddRecurrence(undefined);
-    setAddShowReminder(false);
-    setAddShowRecurrence(false);
-  };
-
-  const updateNote = (id: string, patch: Partial<Note>) => {
-    persist(notes.map((n) => (n.id === id ? { ...n, ...patch } : n)));
-  };
-
-  const markDone = (n: Note) => {
-    const now = new Date().toISOString();
-    if (n.recurrence && n.recurrence.type !== "none") {
-      const nextIso = nextOccurrence(n.recurrence, new Date());
-      if (nextIso) {
-        const nextNote: Note = {
-          id: generateId(),
-          title: n.title,
-          body: n.body,
-          createdAt: nextIso,
-          updatedAt: nextIso,
-          status: "active",
-          parentId: n.id,
-          cycleCount: (n.cycleCount || 0) + 1,
-          recurrence: n.recurrence,
-          color: n.color,
-        };
-        persist([
-          ...notes.map((x) =>
-            x.id === n.id ? { ...x, status: "done" as NoteStatus, doneAt: now } : x
-          ),
-          nextNote,
-        ]);
+  // 详情面板用独立 Tauri 窗口（Tauri 模式下）
+  useEffect(() => {
+    if (!isTauri() || !selectedNoteId) {
+      detailWindowRef.current = null;
+      return;
+    }
+    // 已存在则聚焦
+    if (detailWindowRef.current) {
+      try {
+        detailWindowRef.current.setFocus();
+        detailWindowRef.current.emit && detailWindowRef.current.emit("note-selected", { id: selectedNoteId });
         return;
+      } catch {
+        detailWindowRef.current = null;
       }
     }
-    persist(
-      notes.map((x) =>
-        x.id === n.id ? { ...x, status: "done" as NoteStatus, doneAt: now } : x
-      )
-    );
-  };
+    (async () => {
+      try {
+        const mod = await import(/* @vite-ignore */ "@tauri-apps/api/webviewWindow");
+        const { WebviewWindow } = mod as any;
+        const w = new WebviewWindow(`detail-${selectedNoteId}`, {
+          url: `index.html?detail=${selectedNoteId}&mode=standalone`,
+          width: 320,
+          height: 600,
+          x: window.screenX - 330,
+          y: window.screenY,
+          decorations: false,
+          alwaysOnTop: true,
+          resizable: true,
+          title: "便签详情",
+        });
+        w.once && w.once("tauri://created", () => {
+          detailWindowRef.current = w;
+        });
+      } catch (e) {
+        console.error("[detail window]", e);
+      }
+    })();
+  }, [selectedNoteId]);
 
-  const trashNote = (n: Note) => {
-    persist(
-      notes.map((x) =>
-        x.id === n.id ? { ...x, status: "deleted" as NoteStatus, doneAt: new Date().toISOString() } : x
-      )
-    );
-    if (selectedNoteId === n.id) setSelectedNoteId(null);
-  };
-
-  const restoreNote = (id: string) => {
-    persist(notes.map((n) => (n.id === id ? { ...n, status: "active" as NoteStatus, doneAt: undefined } : n)));
-  };
-  const deleteForever = (id: string) => persist(notes.filter((n) => n.id !== id));
-  const clearTrash = (status: NoteStatus) => persist(notes.filter((n) => n.status !== status));
-
+  // 提醒引擎
   useEffect(() => {
-    requestNotificationPermission();
-    const check = () => {
+    const tick = () => {
       const now = Date.now();
-      notesRef.current.forEach((n) => {
-        if (
-          n.status === "active" &&
-          n.reminderAt &&
-          !firedRemindersRef.current.has(n.id) &&
-          new Date(n.reminderAt).getTime() <= now
-        ) {
+      for (const n of notes) {
+        if (n.status !== "active" || !n.reminderAt) continue;
+        const t = new Date(n.reminderAt).getTime();
+        if (t <= now && !firedRemindersRef.current.has(n.id)) {
           firedRemindersRef.current.add(n.id);
-          showNotification("⏰ 便签提醒", notePreview(n, 100) || "(空便签)");
+          fireNotification(n);
         }
-      });
+      }
     };
-    check();
-    const timer = setInterval(check, 15000);
-    return () => clearInterval(timer);
-  }, []);
+    const id = setInterval(tick, 15 * 1000);
+    tick();
+    return () => clearInterval(id);
+  }, [notes]);
 
-  const toggleAlwaysOnTop = async () => {
-    const v = !isAlwaysOnTop;
-    setIsAlwaysOnTop(v);
-    if (appWindow) await appWindow.setAlwaysOnTop(v);
-  };
-  const handleClose = async () => {
-    if (appWindow) await appWindow.hide();
-  };
-  const handleMinimize = async () => {
-    if (appWindow) await appWindow.minimize();
+  const fireNotification = async (n: Note) => {
+    const title = n.title || n.content?.split("\n")[0] || "便签提醒";
+    if (isTauri()) {
+      const mod = await import(/* @vite-ignore */ "@tauri-apps/plugin-notification");
+      (mod as any).sendNotification({ title, body: n.body || "" });
+    } else if ("Notification" in window) {
+      if (Notification.permission === "granted") {
+        new Notification(title, { body: n.body || "" });
+      } else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then((p) => {
+          if (p === "granted") new Notification(title, { body: n.body || "" });
+        });
+      }
+    }
   };
 
-  const navDates: string[] = [];
-  for (let i = -7; i <= 7; i++) {
-    const d = new Date();
-    d.setDate(d.getDate() + i);
-    navDates.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+  // 操作
+  const addNote = () => {
+    if (!newTitle.trim() && !newBody.trim()) return;
+    const now = new Date();
+    // 如果设置了 scheduledStart，用它作为 createdAt（这样日历和分组按计划时间显示）
+    const createdAt = addStart
+      ? localInputToIso(addStart) || now.toISOString()
+      : now.toISOString();
+    const n: Note = {
+      id: generateId(),
+      title: newTitle.trim() || newBody.trim().split("\n")[0] || "(无标题)",
+      body: newBody.trim(),
+      content: (newTitle.trim() + "\n" + newBody.trim()).trim(),
+      createdAt,
+      updatedAt: createdAt,
+      status: "active",
+      color: newColor,
+      ...(addReminder ? { reminderAt: addReminder } : {}),
+      ...(addRecurrence ? { recurrence: addRecurrence } : {}),
+      ...(addStart ? { scheduledStart: localInputToIso(addStart) } : {}),
+      ...(addEnd ? { scheduledEnd: localInputToIso(addEnd) } : {}),
+    };
+    setNotes((prev) => [n, ...prev]);
+    setNewTitle("");
+    setNewBody("");
+    setNewColor("yellow");
+    setAddReminder("");
+    setAddRecurrence(undefined);
+    setAddStart("");
+    setAddEnd("");
+    setAdding(false);
+  };
+
+  const updateNote = (n: Note) => {
+    setNotes((prev) => prev.map((x) => (x.id === n.id ? n : x)));
+  };
+
+  const setStatus = (id: string, status: NoteStatus) => {
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === id
+          ? {
+              ...n,
+              status,
+              doneAt: status === "done" ? new Date().toISOString() : undefined,
+            }
+          : n
+      )
     );
-  }
+  };
 
+  const markDone = (id: string) => setStatus(id, "done");
+  const restore = (id: string) => setStatus(id, "active");
+  const softDelete = (id: string) => setStatus(id, "deleted");
+  const hardDelete = (id: string) => setNotes((prev) => prev.filter((n) => n.id !== id));
+
+  const startEdit = (id: string) => {
+    const n = notes.find((x) => x.id === id);
+    if (!n) return;
+    setEditingId(id);
+    setEditTitle(n.title);
+    setEditBody(n.body || "");
+  };
+  const saveEdit = () => {
+    if (!editingId) return;
+    setNotes((prev) =>
+      prev.map((n) =>
+        n.id === editingId
+          ? {
+              ...n,
+              title: editTitle.trim() || "(无标题)",
+              body: editBody,
+              content: (editTitle.trim() + "\n" + editBody).trim(),
+              updatedAt: new Date().toISOString(),
+            }
+          : n
+      )
+    );
+    setEditingId(null);
+  };
+
+  // 过滤
+  const today = todayStr();
+  const activeNotes = notes.filter((n) => n.status === "active");
+  const todayNotes = activeNotes.filter((n) => noteDate(n) === today);
+  const scheduledNotes = activeNotes
+    .filter((n) => n.scheduledStart)
+    .sort((a, b) => new Date(a.scheduledStart!).getTime() - new Date(b.scheduledStart!).getTime());
+  const hierarchy = buildHierarchy(activeNotes);
+
+  let displayNotes: Note[] = [];
+  if (listMode === "today") displayNotes = todayNotes;
+  else if (listMode === "all") displayNotes = activeNotes;
+  else if (listMode === "scheduled") displayNotes = scheduledNotes;
+
+  // 按日期分组
   const dateMap = new Map<string, Note[]>();
-  activeNotes.forEach((n) => {
-    const d = n.createdAt.split("T")[0];
+  for (const n of displayNotes) {
+    const d = noteDate(n);
     if (!dateMap.has(d)) dateMap.set(d, []);
     dateMap.get(d)!.push(n);
-  });
-
-  const todayNotes = dateMap.get(selectedDate) || [];
-  const trashCount = notes.filter((n) => n.status !== "active").length;
-
-  // ===== 归档时间段计算 =====
-  function getArchivePeriod(note: Note): string {
-    const created = new Date(note.createdAt);
-    const done = note.doneAt ? new Date(note.doneAt) : new Date();
-    const diffMs = done.getTime() - created.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHr = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHr / 24);
-    if (diffMin < 1) return "刚刚";
-    if (diffMin < 60) return `${diffMin} 分钟`;
-    if (diffHr < 24) return `${diffHr} 小时`;
-    if (diffDay < 30) return `${diffDay} 天`;
-    const diffMonth = Math.floor(diffDay / 30);
-    if (diffMonth < 12) return `${diffMonth} 个月`;
-    return `${Math.floor(diffMonth / 12)} 年`;
   }
+  const sortedDates = Array.from(dateMap.keys()).sort().reverse();
 
-  function formatArchiveTime(note: Note): string {
-    const period = getArchivePeriod(note);
-    const done = note.doneAt ? new Date(note.doneAt) : null;
-    if (!done) return `⏱ 处理时长：${period}`;
-    const doneStr = `${done.getFullYear()}-${String(done.getMonth() + 1).padStart(2, "0")}-${String(done.getDate()).padStart(2, "0")} ${String(done.getHours()).padStart(2, "0")}:${String(done.getMinutes()).padStart(2, "0")}`;
-    return `⏱ 创建→完成：${period} ｜ 完成于 ${doneStr}`;
-  }
+  // 选中的便签
+  const selectedNote = selectedNoteId ? notes.find((n) => n.id === selectedNoteId) : null;
+
+  // 窗口控制
+  const toggleAlwaysOnTop = async () => {
+    if (!isTauri()) return;
+    const w = await getAppWindow();
+    if (!w) return;
+    const next = !isAlwaysOnTop;
+    await w.setAlwaysOnTop(next);
+    setIsAlwaysOnTop(next);
+  };
+
+  const handleClose = async () => {
+    const w = await getAppWindow();
+    if (w) await w.hide();
+  };
+  const handleMinimize = async () => {
+    const w = await getAppWindow();
+    if (w) await w.minimize();
+  };
+
+  const headerBtnCls = "px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300";
 
   return (
     <>
-      {/* ===== 详情面板：fixed 在 APP 外部左侧 ===== */}
-      {selectedNote && (
-        <DetailPanel
-          note={selectedNote}
-          onUpdate={(patch) => updateNote(selectedNote.id, patch)}
-          onClose={() => setSelectedNoteId(null)}
-          onDelete={() => trashNote(selectedNote)}
-          onDone={() => markDone(selectedNote)}
-          archiveInfo={selectedNote.status === "done" ? formatArchiveTime(selectedNote) : undefined}
-        />
-      )}
-
-      {/* ===== 主窗口 ===== */}
-      <div className="flex flex-col h-full bg-stone-50 rounded-xl shadow-2xl overflow-hidden select-none relative">
-        {/* 标题栏 — 柔和配色 */}
+      {/* 主窗口 */}
+      <div className="h-screen w-full bg-stone-50 flex flex-col text-stone-800 text-sm">
+        {/* 顶栏 */}
         <div className="flex items-center justify-between px-2 py-1.5 bg-stone-100 border-b border-stone-200">
-          <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0">
-            <span className="text-base">📝</span>
-            <span data-tauri-drag-region className="font-bold text-stone-700 text-sm whitespace-nowrap">
-              桌面便签
-            </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => { setView("list"); setListMode("all"); }}
+              className={`${headerBtnCls} ${view === "list" && listMode === "all" ? "bg-stone-300 font-bold" : ""}`}
+            >
+              📋 全部
+            </button>
+            <button
+              onClick={() => { setView("list"); setListMode("today"); }}
+              className={`${headerBtnCls} ${view === "list" && listMode === "today" ? "bg-stone-300 font-bold" : ""}`}
+            >
+              ⭐ 今天
+            </button>
+            <button
+              onClick={() => setListMode("scheduled")}
+              className={`${headerBtnCls} ${listMode === "scheduled" ? "bg-stone-300 font-bold" : ""}`}
+            >
+              📅 计划
+            </button>
+            <button
+              onClick={() => setView("calendar")}
+              className={`${headerBtnCls} ${view === "calendar" ? "bg-stone-300 font-bold" : ""}`}
+            >
+              🗓 日历
+            </button>
+            <button
+              onClick={() => setView("trash")}
+              className={`${headerBtnCls} ${view === "trash" ? "bg-stone-300 font-bold" : ""}`}
+            >
+              🗑 回收
+            </button>
           </div>
-          <div className="flex items-center gap-0.5">
-            <div className="flex bg-stone-200/70 rounded-lg p-0.5 mr-1">
-              <button
-                onClick={() => setView("list")}
-                title="便签列表"
-                className={`px-2 py-0.5 rounded-md text-xs transition-colors ${
-                  view === "list" ? "bg-white text-stone-700 font-bold shadow-sm" : "text-stone-500 hover:text-stone-700"
-                }`}
-              >
-                📋
-              </button>
-              <button
-                onClick={() => setView("calendar")}
-                title="日期表格"
-                className={`px-2 py-0.5 rounded-md text-xs transition-colors ${
-                  view === "calendar" ? "bg-white text-stone-700 font-bold shadow-sm" : "text-stone-500 hover:text-stone-700"
-                }`}
-              >
-                📅
-              </button>
-              <button
-                onClick={() => setView("trash")}
-                title="回收站"
-                className={`px-2 py-0.5 rounded-md text-xs transition-colors relative ${
-                  view === "trash" ? "bg-white text-stone-700 font-bold shadow-sm" : "text-stone-500 hover:text-stone-700"
-                }`}
-              >
-                🗑️
-                {trashCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-400 text-white text-[9px] px-1 rounded-full leading-none py-0.5">
-                    {trashCount > 99 ? "99+" : trashCount}
-                  </span>
-                )}
-              </button>
-            </div>
+          <div className="flex items-center gap-1">
             <button
               onClick={toggleAlwaysOnTop}
-              title={isAlwaysOnTop ? "取消置顶" : "置顶窗口"}
-              className={`w-6 h-6 rounded flex items-center justify-center text-xs transition-colors ${
-                isAlwaysOnTop ? "bg-amber-200 text-amber-800" : "bg-stone-50 text-stone-400 hover:bg-stone-100"
-              }`}
+              className={`${headerBtnCls} ${isAlwaysOnTop ? "bg-amber-200 text-amber-800" : ""}`}
+              title="窗口置顶（仅在打包为桌面应用后生效）"
             >
-              📌
+              📌{isAlwaysOnTop ? "已" : ""}
             </button>
-            <button
-              onClick={handleMinimize}
-              title="最小化"
-              className="w-6 h-6 rounded bg-stone-50 text-stone-500 hover:bg-stone-200 flex items-center justify-center text-[10px] transition-colors"
-            >
-              ─
-            </button>
-            <button
-              onClick={handleClose}
-              title="最小化到托盘"
-              className="w-6 h-6 rounded bg-stone-50 text-stone-500 hover:bg-red-200 hover:text-red-600 flex items-center justify-center text-[10px] transition-colors"
-            >
-              ✕
-            </button>
+            <button onClick={handleMinimize} className={headerBtnCls} title="最小化">─</button>
+            <button onClick={handleClose} className={headerBtnCls} title="关闭到托盘">✕</button>
           </div>
         </div>
 
-        {/* 置顶提示（浏览器预览下无效时提示用户） */}
-        {isAlwaysOnTop && !appWindow && (
-          <div className="px-2 py-1 bg-amber-100 text-amber-700 text-[11px] text-center">
-            ⚠️ 置顶功能需打包为桌面应用后生效，浏览器预览中无法置顶
-          </div>
-        )}
+        {/* 主体 */}
+        <div className="flex-1 overflow-y-auto p-2">
+          {view === "list" && listMode === "tree" && (
+            <HierarchicalList
+              hierarchy={hierarchy}
+              onSelect={(id) => setSelectedNoteId(id)}
+              onEdit={startEdit}
+              onMarkDone={markDone}
+              onRestore={restore}
+              onDelete={softDelete}
+            />
+          )}
 
-        {/* 视图内容 */}
-        {view === "calendar" ? (
-          <CalendarView notes={notes} selectedDate={selectedDate} onSelectDate={(d) => { setSelectedDate(d); setListMode("today"); setView("list"); }} />
-        ) : view === "trash" ? (
-          <TrashView notes={notes} onRestore={restoreNote} onDeleteForever={deleteForever} onClear={clearTrash} />
-        ) : (
-          <>
-            {listMode === "today" && (
-              <div className="flex items-center gap-1 px-2 py-1.5 bg-stone-50 border-b border-stone-200 overflow-x-auto">
-                {navDates.map((d) => {
-                  const hasNotes = dateMap.has(d);
-                  const isSelected = d === selectedDate;
-                  return (
-                    <button
-                      key={d}
-                      onClick={() => setSelectedDate(d)}
-                      className={`relative px-2 py-1 rounded text-xs whitespace-nowrap transition-colors ${
-                        isSelected
-                          ? "bg-stone-300 text-stone-800 font-bold"
-                          : hasNotes
-                          ? "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                          : "text-stone-400 hover:bg-stone-100"
-                      }`}
-                    >
-                      {formatLabel(d)}
-                      {hasNotes && !isSelected && (
-                        <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-red-300" />
+          {view === "list" && listMode !== "tree" && (
+            <>
+              {!isTauri() && (
+                <div className="text-[10px] text-stone-400 bg-stone-100 rounded px-2 py-1 mb-2">
+                  💡 浏览器预览：📌 置顶、⏰ 系统通知、📂 本地文件跳转需打包为桌面应用
+                </div>
+              )}
+              {listMode === "scheduled" && (
+                <div className="mb-2 text-[11px] text-stone-500 bg-blue-50 border border-blue-100 rounded px-2 py-1">
+                  📅 按计划开始时间排序（{scheduledNotes.length} 条）
+                </div>
+              )}
+              {listMode === "today" && (
+                <div className="mb-2 text-[11px] text-stone-500 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+                  ⭐ 今天的便签（{todayNotes.length} 条）
+                </div>
+              )}
+              {sortedDates.length === 0 ? (
+                <div className="text-center text-stone-400 text-sm py-8">
+                  {listMode === "scheduled" ? "暂无计划任务" : "暂无便签，点击下方 + 新建"}
+                </div>
+              ) : (
+                sortedDates.map((d) => (
+                  <div key={d} className="mb-3">
+                    <div className="text-xs font-bold text-stone-500 mb-1 px-1">
+                      {formatDateLabel(d)}
+                    </div>
+                    <div className="space-y-1.5">
+                      {dateMap.get(d)!.map((n) =>
+                        editingId === n.id ? (
+                          <div
+                            key={n.id}
+                            className="p-2 rounded-lg bg-stone-100 border border-stone-300 space-y-1"
+                          >
+                            <input
+                              value={editTitle}
+                              onChange={(e) => setEditTitle(e.target.value)}
+                              className="w-full text-sm font-bold px-1.5 py-1 rounded border border-stone-200 bg-white"
+                              placeholder="标题"
+                              autoFocus
+                            />
+                            <textarea
+                              value={editBody}
+                              onChange={(e) => setEditBody(e.target.value)}
+                              className="w-full text-xs px-1.5 py-1 rounded border border-stone-200 bg-white resize-none"
+                              placeholder="详情"
+                              rows={3}
+                            />
+                            <div className="flex justify-end gap-1">
+                              <button
+                                onClick={() => setEditingId(null)}
+                                className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-600"
+                              >
+                                取消
+                              </button>
+                              <button
+                                onClick={saveEdit}
+                                className="px-2 py-1 text-xs rounded bg-emerald-200 text-emerald-800 font-bold"
+                              >
+                                保存
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <NoteCard
+                            key={n.id}
+                            note={n}
+                            onEdit={startEdit}
+                            onSelect={(id) => setSelectedNoteId(id)}
+                            onMarkDone={markDone}
+                            onRestore={restore}
+                            onDelete={softDelete}
+                          />
+                        )
                       )}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              <div className="flex items-center justify-between px-1">
-                <div className="text-xs text-stone-600 font-medium">
-                  {listMode === "all"
-                    ? `📚 全部时间 · ${activeNotes.length} 条`
-                    : `📅 ${formatFullDate(new Date(selectedDate))} · ${todayNotes.length} 条`}
-                </div>
-                <div className="flex gap-1">
-                  <button
-                    onClick={() => setListMode(listMode === "today" ? "all" : "today")}
-                    className="text-[11px] px-2 py-0.5 rounded bg-stone-100 text-stone-600 hover:bg-stone-200"
-                  >
-                    {listMode === "all" ? "📅 今日视图" : "📚 全部时间"}
-                  </button>
-                </div>
-              </div>
-
-              {adding && (
-                <div className="relative rounded-lg overflow-hidden shadow-sm">
-                  <div className="bg-stone-50 border border-stone-300 rounded-lg p-3 space-y-1.5">
-                    <input
-                      ref={(el) => { newTitleRef.current = el as unknown as HTMLTextAreaElement; }}
-                      value={newTitle}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          addNote();
-                        }
-                        if (e.key === "Escape") {
-                          setAdding(false);
-                          setNewTitle("");
-                          setNewBody("");
-                        }
-                      }}
-                      placeholder="标题…"
-                      className="w-full bg-transparent outline-none text-base font-bold text-stone-800 placeholder-stone-400"
-                      autoFocus
-                    />
-                    <textarea
-                      value={newBody}
-                      onChange={(e) => {
-                        setNewBody(e.target.value);
-                        e.target.style.height = "auto";
-                        e.target.style.height = e.target.scrollHeight + "px";
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.ctrlKey && e.key === "Enter") addNote();
-                        if (e.key === "Escape") {
-                          setAdding(false);
-                          setNewTitle("");
-                          setNewBody("");
-                        }
-                      }}
-                      placeholder="详情内容… (Ctrl+Enter 保存)"
-                      className="w-full bg-transparent outline-none resize-none text-sm text-stone-700 placeholder-stone-400 leading-relaxed"
-                      rows={3}
-                    />
-
-                    {addShowReminder && (
-                      <ReminderPicker
-                        currentIso={addReminder}
-                        onSet={(iso) => setAddReminder(iso)}
-                        onClear={() => setAddReminder(undefined)}
-                        onClose={() => setAddShowReminder(false)}
-                      />
-                    )}
-                    {addShowRecurrence && (
-                      <RecurrenceEditor
-                        value={addRecurrence}
-                        onChange={setAddRecurrence}
-                        onClose={() => setAddShowRecurrence(false)}
-                      />
-                    )}
-
-                    {!addShowReminder && !addShowRecurrence && (
-                      <div className="flex gap-1 pt-1">
-                        <button
-                          onClick={() => setAddShowReminder(true)}
-                          className={`text-[11px] px-2 py-0.5 rounded ${
-                            addReminder
-                              ? "bg-blue-100 text-blue-700"
-                              : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                          }`}
-                        >
-                          {addReminder ? "⏰ 已设" : "⏰ 提醒"}
-                        </button>
-                        <button
-                          onClick={() => setAddShowRecurrence(true)}
-                          className={`text-[11px] px-2 py-0.5 rounded ${
-                            addRecurrence
-                              ? "bg-purple-100 text-purple-700"
-                              : "bg-stone-100 text-stone-600 hover:bg-stone-200"
-                          }`}
-                        >
-                          {addRecurrence ? "🔁 已设" : "🔁 周期"}
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="flex justify-end gap-1 pt-1">
-                      <button
-                        onClick={() => {
-                          setAdding(false);
-                          setNewTitle("");
-                          setNewBody("");
-                          setAddReminder(undefined);
-                          setAddRecurrence(undefined);
-                          setAddShowReminder(false);
-                          setAddShowRecurrence(false);
-                        }}
-                        className="px-2 py-1 text-xs rounded bg-stone-100 text-stone-500 hover:bg-stone-200"
-                      >
-                        取消
-                      </button>
-                      <button
-                        onClick={addNote}
-                        disabled={!newTitle.trim() && !newBody.trim()}
-                        className="px-2 py-1 text-xs rounded bg-stone-300 text-stone-800 font-medium hover:bg-stone-400 disabled:opacity-40"
-                      >
-                        保存
-                      </button>
                     </div>
                   </div>
-                </div>
+                ))
               )}
+            </>
+          )}
 
-              {listMode === "today" ? (
-                <>
-                  {todayNotes.map((note) => (
-                    <NoteCard
-                      key={note.id}
-                      note={note}
-                      onClick={() => setSelectedNoteId(note.id)}
-                      onSwipeDelete={() => trashNote(note)}
-                    />
-                  ))}
-                  {todayNotes.length === 0 && !adding && (
-                    <div className="flex flex-col items-center justify-center py-8 text-stone-400">
-                      <div className="text-3xl mb-2">📋</div>
-                      <div className="text-sm">这一天还没有便签</div>
-                      <div className="text-[11px] text-stone-300 mt-1">点下方"+ 添加便签"按钮</div>
+          {view === "calendar" && (
+            <CalendarView
+              notes={notes}
+              selectedDate={selectedDate}
+              onSelectDate={setSelectedDate}
+            />
+          )}
+
+          {view === "trash" && (
+            <TrashView
+              notes={notes}
+              onRestore={restore}
+              onDelete={softDelete}
+              onDeleteForever={hardDelete}
+              onSelect={(id) => setSelectedNoteId(id)}
+            />
+          )}
+        </div>
+
+        {/* 底部新建按钮 */}
+        <div className="p-2 border-t border-stone-200 bg-stone-50">
+          {!adding ? (
+            <button
+              onClick={() => setAdding(true)}
+              className="w-full py-2 rounded-lg bg-stone-700 text-white font-bold hover:bg-stone-800"
+            >
+              + 新建便签
+            </button>
+          ) : (
+            <div className="space-y-1.5 bg-white border border-stone-200 rounded-lg p-2">
+              <input
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="标题（必填或填详情）"
+                className="w-full text-sm font-bold px-2 py-1.5 rounded border border-stone-200 focus:outline-none focus:border-stone-400"
+                autoFocus
+              />
+              <textarea
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                placeholder="详情..."
+                className="w-full text-xs px-2 py-1 rounded border border-stone-200 resize-none focus:outline-none focus:border-stone-400"
+                rows={3}
+              />
+
+              {/* 时间段 */}
+              <div>
+                <button
+                  onClick={() => setAddShowSchedule(!addShowSchedule)}
+                  className="text-[11px] text-stone-500 hover:underline"
+                >
+                  📅 工作时间段 {addStart && `(已设置)`}
+                </button>
+                {addShowSchedule && (
+                  <div className="mt-1 space-y-1 bg-stone-50 p-1.5 rounded">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-stone-500 w-10">开始</span>
+                      <input
+                        type="datetime-local"
+                        value={addStart}
+                        onChange={(e) => setAddStart(e.target.value)}
+                        className="flex-1 text-[11px] rounded border border-stone-200 px-1 py-0.5 bg-white"
+                      />
                     </div>
-                  )}
-                </>
-              ) : (
-                <HierarchicalList
-                  notes={activeNotes}
-                  onSelectNote={(n) => setSelectedNoteId(n.id)}
-                  onMarkDone={markDone}
-                  onTrash={trashNote}
-                />
-              )}
-            </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-stone-500 w-10">结束</span>
+                      <input
+                        type="datetime-local"
+                        value={addEnd}
+                        onChange={(e) => setAddEnd(e.target.value)}
+                        className="flex-1 text-[11px] rounded border border-stone-200 px-1 py-0.5 bg-white"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
-            <div className="p-2 bg-stone-50 border-t border-stone-200">
-              <button
-                onClick={() => {
-                  setAdding(true);
-                  setTimeout(() => newTitleRef.current?.focus(), 10);
-                }}
-                className="w-full py-2 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 font-medium text-sm transition-colors flex items-center justify-center gap-2"
-              >
-                <span className="text-base leading-none">+</span> 添加便签
-              </button>
+              {/* 提醒 */}
+              <div>
+                <button
+                  onClick={() => setAddShowReminder(!addShowReminder)}
+                  className="text-[11px] text-stone-500 hover:underline"
+                >
+                  ⏰ 提醒 {addReminder && `(${formatReminderLabel(addReminder)})`}
+                </button>
+                {addShowReminder && (
+                  <div className="mt-1">
+                    <ReminderPicker
+                      currentIso={addReminder}
+                      onSet={(iso) => setAddReminder(iso)}
+                      onClear={() => setAddReminder("")}
+                      onClose={() => setAddShowReminder(false)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 周期 */}
+              <div>
+                <button
+                  onClick={() => setAddShowRecurrence(!addShowRecurrence)}
+                  className="text-[11px] text-stone-500 hover:underline"
+                >
+                  🔁 长期任务 {addRecurrence && `(${describeRecurrence(addRecurrence)})`}
+                </button>
+                {addShowRecurrence && (
+                  <div className="mt-1">
+                    <RecurrenceEditor
+                      value={addRecurrence}
+                      onChange={(r) => setAddRecurrence(r)}
+                      onClose={() => setAddShowRecurrence(false)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 颜色 */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-stone-500">颜色：</span>
+                {(["yellow", "pink", "blue", "green", "purple"] as const).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setNewColor(c)}
+                    className={`w-5 h-5 rounded-full border-2 ${
+                      newColor === c ? "ring-2 ring-stone-400 border-stone-300" : "border-stone-200"
+                    } ${
+                      c === "yellow" ? "bg-yellow-100" :
+                      c === "pink" ? "bg-pink-100" :
+                      c === "blue" ? "bg-sky-100" :
+                      c === "green" ? "bg-emerald-100" :
+                      "bg-violet-100"
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-1.5 pt-1">
+                <button
+                  onClick={() => {
+                    setAdding(false);
+                    setNewTitle("");
+                    setNewBody("");
+                    setAddReminder("");
+                    setAddRecurrence(undefined);
+                    setAddStart("");
+                    setAddEnd("");
+                    setAddShowReminder(false);
+                    setAddShowRecurrence(false);
+                    setAddShowSchedule(false);
+                  }}
+                  className="px-3 py-1 text-xs rounded bg-stone-200 text-stone-600"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={addNote}
+                  className="px-3 py-1 text-xs rounded bg-emerald-200 text-emerald-800 font-bold"
+                >
+                  保存
+                </button>
+              </div>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* 详情面板：浏览器预览下用 fixed 浮层；Tauri 下用独立窗口（已通过 useEffect 创建） */}
+      {!isTauri() && selectedNote && (
+        <div className="detail-panel-overlay">
+          <DetailPanel
+            note={selectedNote}
+            onClose={() => setSelectedNoteId(null)}
+            onUpdate={updateNote}
+            onMarkDone={(id) => { markDone(id); setSelectedNoteId(null); }}
+            onDelete={(id) => { softDelete(id); setSelectedNoteId(null); }}
+          />
+        </div>
+      )}
     </>
   );
-}
-
-function formatLabel(dateStr: string): string {
-  const t = new Date();
-  const y = t.getFullYear();
-  const m = String(t.getMonth() + 1).padStart(2, "0");
-  const d = String(t.getDate()).padStart(2, "0");
-  const today = `${y}-${m}-${d}`;
-  const yest = new Date(t);
-  yest.setDate(yest.getDate() - 1);
-  const yesterday = `${yest.getFullYear()}-${String(yest.getMonth() + 1).padStart(2, "0")}-${String(yest.getDate()).padStart(2, "0")}`;
-  if (dateStr === today) return "今天";
-  if (dateStr === yesterday) return "昨天";
-  const d2 = new Date(dateStr + "T12:00:00");
-  const wd = ["日", "一", "二", "三", "四", "五", "六"][d2.getDay()];
-  return `${d2.getMonth() + 1}/${d2.getDate()}周${wd}`;
-}
-
-function formatFullDate(d: Date): string {
-  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`;
 }
