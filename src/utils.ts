@@ -234,3 +234,65 @@ export function getReminderPresets(): ReminderPreset[] {
   ];
   return presets;
 }
+
+// ===== 工作时间段格式化 =====
+
+// 格式化"未来/过去"标签
+export function formatScheduledLabel(startIso: string, endIso?: string): string {
+  if (!startIso) return "";
+  const start = new Date(startIso);
+  if (isNaN(start.getTime())) return "";
+  const now = new Date();
+  const isFuture = start.getTime() > now.getTime();
+
+  const startStr = formatScheduledDateTime(start);
+  if (!endIso) {
+    return isFuture ? `📅 计划：${startStr}` : `⏰ 已过：${startStr}`;
+  }
+  const end = new Date(endIso);
+  if (isNaN(end.getTime())) return isFuture ? `📅 计划：${startStr}` : `⏰ 已过：${startStr}`;
+  const endStr = formatScheduledTime(end);
+  // 同一天
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+  const range = sameDay ? `${startStr}–${endStr}` : `${startStr} → ${formatScheduledDateTime(end)}`;
+  return isFuture ? `📅 计划：${range}` : `⏰ 已过：${range}`;
+}
+
+function formatScheduledDateTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function formatScheduledTime(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// 时间段状态：upcoming（未来）/ ongoing（进行中）/ past（已过）
+export function scheduledStatus(startIso: string, endIso?: string): "upcoming" | "ongoing" | "past" {
+  const now = Date.now();
+  const start = new Date(startIso).getTime();
+  if (!endIso) return start > now ? "upcoming" : "past";
+  const end = new Date(endIso).getTime();
+  if (now < start) return "upcoming";
+  if (now > end) return "past";
+  return "ongoing";
+}
+
+// 距离开始还有多久：N 天 N 小时
+export function timeUntil(iso: string): string {
+  const ms = new Date(iso).getTime() - Date.now();
+  if (ms <= 0) return "已到时";
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins} 分钟后`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) {
+    const m = mins % 60;
+    return m ? `${hours} 小时 ${m} 分后` : `${hours} 小时后`;
+  }
+  const days = Math.floor(hours / 24);
+  const h = hours % 24;
+  return h ? `${days} 天 ${h} 小时后` : `${days} 天后`;
+}
