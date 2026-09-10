@@ -56,13 +56,13 @@ export default function DetailPanel({
     // 占位空态
     return (
       <div
-        className={`${isStandalone ? "" : "detail-panel-overlay"} h-full bg-white flex flex-col items-center justify-center text-stone-400 text-sm p-4`}
+        className={`${isStandalone ? "" : "detail-panel-overlay"} h-full bg-white flex flex-col items-center justify-center text-gray-500 text-sm p-4`}
       >
         <div className="text-3xl mb-2">📝</div>
         <div>点击左侧便签查看详情</div>
         <button
           onClick={onClose}
-          className="mt-3 px-3 py-1 text-xs rounded bg-stone-100 hover:bg-stone-200 text-stone-600"
+          className="mt-3 px-3 py-1 text-xs rounded bg-emerald-50 hover:bg-emerald-200 text-gray-700"
         >
           关闭
         </button>
@@ -166,14 +166,14 @@ export default function DetailPanel({
       className={`${isStandalone ? "" : "detail-panel-overlay"} h-full bg-white flex flex-col`}
     >
       {/* 顶栏 */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-stone-200 bg-stone-50">
-        <div className="text-xs text-stone-500 font-bold">📋 详情面板</div>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-emerald-200 bg-white">
+        <div className="text-xs text-gray-600 font-bold">📋 详情面板</div>
         <div className="flex items-center gap-1">
           {!editing && (
             <>
               <button
                 onClick={() => setEditing(true)}
-                className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300"
+                className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-800 hover:bg-emerald-300"
               >
                 ✏️ 编辑
               </button>
@@ -197,7 +197,7 @@ export default function DetailPanel({
             <>
               <button
                 onClick={cancel}
-                className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-600 hover:bg-stone-300"
+                className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-700 hover:bg-emerald-300"
               >
                 取消
               </button>
@@ -211,7 +211,7 @@ export default function DetailPanel({
           )}
           <button
             onClick={onClose}
-            className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-600 hover:bg-stone-300"
+            className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-700 hover:bg-emerald-300"
             title="关闭"
           >
             ✕
@@ -246,39 +246,39 @@ export default function DetailPanel({
 
         {/* 标题 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">标题</label>
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">标题</label>
           {editing ? (
             <input
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              className="w-full text-base font-bold text-stone-800 bg-stone-50 rounded border border-stone-200 px-2 py-1.5 focus:outline-none focus:border-stone-400"
+              className="w-full text-base font-bold text-gray-900 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400"
               placeholder="便签标题"
             />
           ) : (
-            <div className="text-base font-bold text-stone-800">{title}</div>
+            <div className="text-base font-bold text-gray-900">{title}</div>
           )}
         </div>
 
         {/* 详情 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">详情</label>
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">详情</label>
           {editing ? (
             <textarea
               value={draft.body}
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-              className="w-full min-h-[80px] text-sm text-stone-700 bg-stone-50 rounded border border-stone-200 px-2 py-1.5 focus:outline-none focus:border-stone-400 resize-none"
+              className="w-full min-h-[80px] text-sm text-gray-800 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400 resize-none"
               placeholder="详细内容..."
             />
           ) : (
-            <div className="text-sm text-stone-700 whitespace-pre-wrap min-h-[40px]">
-              {body || <span className="text-stone-400">（无详情）</span>}
+            <div className="text-sm text-gray-800 whitespace-pre-wrap min-h-[40px]">
+              {body || <span className="text-gray-500">（无详情）</span>}
             </div>
           )}
         </div>
 
         {/* 颜色 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">颜色</label>
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">颜色</label>
           <div className="flex gap-1.5">
             {COLOR_OPTIONS.map((c) => (
               <button
@@ -286,7 +286,7 @@ export default function DetailPanel({
                 onClick={() => editing && setColor(c.value)}
                 disabled={!editing}
                 className={`w-7 h-7 rounded-full border-2 ${c.bg} ${
-                  draft.color === c.value ? c.border + " ring-2 ring-stone-400" : "border-stone-200"
+                  draft.color === c.value ? c.border + " ring-2 ring-stone-400" : "border-emerald-200"
                 }`}
                 title={c.label}
               />
@@ -296,13 +296,13 @@ export default function DetailPanel({
 
         {/* 时间段（工作计划时间点或时间段） */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">
             📅 工作时间段
           </label>
           {editing ? (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-stone-500 w-12 shrink-0">开始</span>
+                <span className="text-[11px] text-gray-600 w-12 shrink-0">开始</span>
                 <input
                   type="datetime-local"
                   value={draft.scheduledStart ? isoToLocalInput(draft.scheduledStart) : ""}
@@ -310,11 +310,11 @@ export default function DetailPanel({
                     const iso = e.target.value ? localInputToIso(e.target.value) : "";
                     setSchedule(iso, draft.scheduledEnd);
                   }}
-                  className="flex-1 text-xs rounded border border-stone-200 px-1.5 py-1 bg-white text-stone-700"
+                  className="flex-1 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-stone-500 w-12 shrink-0">结束</span>
+                <span className="text-[11px] text-gray-600 w-12 shrink-0">结束</span>
                 <input
                   type="datetime-local"
                   value={draft.scheduledEnd ? isoToLocalInput(draft.scheduledEnd) : ""}
@@ -322,10 +322,10 @@ export default function DetailPanel({
                     const iso = e.target.value ? localInputToIso(e.target.value) : "";
                     setSchedule(draft.scheduledStart || "", iso);
                   }}
-                  className="flex-1 text-xs rounded border border-stone-200 px-1.5 py-1 bg-white text-stone-700"
+                  className="flex-1 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
               </div>
-              <div className="text-[10px] text-stone-400">
+              <div className="text-[10px] text-gray-500">
                 💡 可设置未来某个时间点（仅开始）或时间段（开始+结束）
               </div>
               {hasSchedule && (
@@ -345,7 +345,7 @@ export default function DetailPanel({
                     ? "text-blue-600"
                     : sStatus === "ongoing"
                     ? "text-amber-600"
-                    : "text-stone-500"
+                    : "text-gray-600"
                 }`}
               >
                 {sStatus === "upcoming"
@@ -354,31 +354,31 @@ export default function DetailPanel({
                   ? `▶️ 进行中`
                   : `✓ 已过`}
               </div>
-              <div className="text-xs text-stone-600">
+              <div className="text-xs text-gray-700">
                 {formatScheduledLabel(draft.scheduledStart!, draft.scheduledEnd)}
               </div>
             </div>
           ) : (
-            <div className="text-xs text-stone-400">（未设置）</div>
+            <div className="text-xs text-gray-500">（未设置）</div>
           )}
         </div>
 
         {/* 提醒 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">
             ⏰ 提醒
           </label>
           {editing ? (
             <>
               {draft.reminderAt && (
-                <div className="text-xs text-stone-600 mb-1">
+                <div className="text-xs text-gray-700 mb-1">
                   当前：{formatReminderLabel(draft.reminderAt)}
                 </div>
               )}
               <div className="flex gap-1.5">
                 <button
                   onClick={() => setShowReminder(!showReminder)}
-                  className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300"
+                  className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-800 hover:bg-emerald-300"
                 >
                   {showReminder ? "收起" : draft.reminderAt ? "修改提醒" : "设置提醒"}
                 </button>
@@ -401,27 +401,27 @@ export default function DetailPanel({
               )}
             </>
           ) : draft.reminderAt ? (
-            <div className="text-sm text-stone-700">⏰ {formatReminderLabel(draft.reminderAt)}</div>
+            <div className="text-sm text-gray-800">⏰ {formatReminderLabel(draft.reminderAt)}</div>
           ) : (
-            <div className="text-xs text-stone-400">（未设置）</div>
+            <div className="text-xs text-gray-500">（未设置）</div>
           )}
         </div>
 
         {/* 周期 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">
             🔁 长期任务
           </label>
           {editing ? (
             <>
               {draft.recurrence && (
-                <div className="text-xs text-stone-600 mb-1">
+                <div className="text-xs text-gray-700 mb-1">
                   当前：{describeRecurrence(draft.recurrence)}
                 </div>
               )}
               <button
                 onClick={() => setShowRecurrence(!showRecurrence)}
-                className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300"
+                className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-800 hover:bg-emerald-300"
               >
                 {showRecurrence ? "收起" : draft.recurrence ? "修改规则" : "设置重复"}
               </button>
@@ -434,33 +434,33 @@ export default function DetailPanel({
               )}
             </>
           ) : draft.recurrence ? (
-            <div className="text-sm text-stone-700">🔁 {describeRecurrence(draft.recurrence)}</div>
+            <div className="text-sm text-gray-800">🔁 {describeRecurrence(draft.recurrence)}</div>
           ) : (
-            <div className="text-xs text-stone-400">（无重复）</div>
+            <div className="text-xs text-gray-500">（无重复）</div>
           )}
         </div>
 
         {/* 文件链接 */}
         <div>
-          <label className="text-[11px] text-stone-500 font-bold block mb-1">
+          <label className="text-[11px] text-gray-600 font-bold block mb-1">
             📎 关联文件（点击打开）
           </label>
           <div className="space-y-1">
             {(draft.fileLinks || []).map((link) => (
               <div
                 key={link.id}
-                className="flex items-center gap-1.5 bg-stone-50 border border-stone-200 rounded px-2 py-1"
+                className="flex items-center gap-1.5 bg-white border border-emerald-200 rounded px-2 py-1"
               >
                 <span className="text-sm">
                   {link.kind === "folder" ? "📁" : link.kind === "url" ? "🔗" : "📄"}
                 </span>
                 <button
                   onClick={() => handleOpenFile(link)}
-                  className="flex-1 min-w-0 text-left text-xs text-stone-700 hover:underline truncate"
+                  className="flex-1 min-w-0 text-left text-xs text-gray-800 hover:underline truncate"
                   title={link.path}
                 >
                   <span className="font-medium">{link.label}</span>
-                  <span className="text-stone-400 ml-1 text-[10px]">{link.path}</span>
+                  <span className="text-gray-500 ml-1 text-[10px]">{link.path}</span>
                 </button>
                 {editing && (
                   <button
@@ -473,7 +473,7 @@ export default function DetailPanel({
               </div>
             ))}
             {(!draft.fileLinks || draft.fileLinks.length === 0) && !editing && (
-              <div className="text-xs text-stone-400">（无关联文件）</div>
+              <div className="text-xs text-gray-500">（无关联文件）</div>
             )}
           </div>
 
@@ -483,7 +483,7 @@ export default function DetailPanel({
                 <select
                   value={newFileKind}
                   onChange={(e) => setNewFileKind(e.target.value as FileLink["kind"])}
-                  className="text-xs rounded border border-stone-200 px-1.5 py-1 bg-white text-stone-700"
+                  className="text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 >
                   <option value="file">📄 本地文件</option>
                   <option value="folder">📁 本地文件夹</option>
@@ -493,7 +493,7 @@ export default function DetailPanel({
                   value={newFileLabel}
                   onChange={(e) => setNewFileLabel(e.target.value)}
                   placeholder="标签（如：项目文档）"
-                  className="flex-1 min-w-0 text-xs rounded border border-stone-200 px-1.5 py-1 bg-white text-stone-700"
+                  className="flex-1 min-w-0 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
               </div>
               <div className="flex gap-1.5">
@@ -505,12 +505,12 @@ export default function DetailPanel({
                       ? "https://..."
                       : "/Users/.../file.txt 或 C:\\path\\to\\file"
                   }
-                  className="flex-1 min-w-0 text-xs rounded border border-stone-200 px-1.5 py-1 bg-white text-stone-700"
+                  className="flex-1 min-w-0 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
                 {newFileKind !== "url" && (
                   <button
                     onClick={handlePickFile}
-                    className="px-2 py-1 text-xs rounded bg-stone-200 text-stone-700 hover:bg-stone-300 shrink-0"
+                    className="px-2 py-1 text-xs rounded bg-emerald-100 text-gray-800 hover:bg-emerald-300 shrink-0"
                     title="选择文件"
                   >
                     📂
@@ -530,7 +530,7 @@ export default function DetailPanel({
                 style={{ display: "none" }}
                 onChange={handleFileSelected}
               />
-              <div className="text-[10px] text-stone-400">
+              <div className="text-[10px] text-gray-500">
                 💡 浏览器预览下"选择文件"只能取文件名；打包后可直接打开本地文件/文件夹
               </div>
             </div>
@@ -538,7 +538,7 @@ export default function DetailPanel({
         </div>
 
         {/* 元信息 */}
-        <div className="text-[10px] text-stone-400 border-t border-stone-100 pt-2 space-y-0.5">
+        <div className="text-[10px] text-gray-500 border-t border-stone-100 pt-2 space-y-0.5">
           <div>创建：{new Date(note.createdAt).toLocaleString("zh-CN", { hour12: false })}</div>
           {note.updatedAt !== note.createdAt && (
             <div>更新：{new Date(note.updatedAt).toLocaleString("zh-CN", { hour12: false })}</div>
