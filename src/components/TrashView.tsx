@@ -68,16 +68,16 @@ function NoteRow({
         <div className="flex-1 min-w-0">
           <div
             className={`text-sm font-medium cursor-pointer hover:underline ${
-              note.status === "done" ? "line-through text-stone-500" : "text-stone-400 line-through"
+              note.status === "done" ? "line-through text-gray-600" : "text-gray-500 line-through"
             }`}
             onClick={() => onSelect(note.id)}
           >
             {title}
           </div>
           {body && (
-            <div className="text-[11px] text-stone-400 line-clamp-2 mt-0.5">{body}</div>
+            <div className="text-[11px] text-gray-500 line-clamp-2 mt-0.5">{body}</div>
           )}
-          <div className="text-[10px] text-stone-400 mt-1 space-y-0.5">
+          <div className="text-[10px] text-gray-500 mt-1 space-y-0.5">
             <div>⏱ {archive}</div>
             {note.doneAt && (
               <div>
@@ -98,7 +98,7 @@ function NoteRow({
           {note.status === "done" ? (
             <button
               onClick={() => onDelete(note.id)}
-              className="px-1.5 py-0.5 text-[10px] rounded bg-stone-200 text-stone-600 hover:bg-stone-300"
+              className="px-1.5 py-0.5 text-[10px] rounded bg-emerald-100 text-gray-700 hover:bg-emerald-300"
               title="移到已删除"
             >
               🗑 删除
@@ -139,7 +139,7 @@ export default function TrashView({ notes, onSelect, onRestore, onDelete, onDele
         <button
           onClick={() => setTab("done")}
           className={`flex-1 py-1.5 text-xs rounded font-bold ${
-            tab === "done" ? "bg-stone-300 text-stone-800" : "bg-stone-100 text-stone-500"
+            tab === "done" ? "bg-emerald-200 text-gray-900" : "bg-emerald-50 text-gray-600"
           }`}
         >
           ✅ 已完成（{notes.filter((n) => n.status === "done").length}）
@@ -147,7 +147,7 @@ export default function TrashView({ notes, onSelect, onRestore, onDelete, onDele
         <button
           onClick={() => setTab("deleted")}
           className={`flex-1 py-1.5 text-xs rounded font-bold ${
-            tab === "deleted" ? "bg-stone-300 text-stone-800" : "bg-stone-100 text-stone-500"
+            tab === "deleted" ? "bg-emerald-200 text-gray-900" : "bg-emerald-50 text-gray-600"
           }`}
         >
           🗑 已删除（{notes.filter((n) => n.status === "deleted").length}）
@@ -163,7 +163,7 @@ export default function TrashView({ notes, onSelect, onRestore, onDelete, onDele
       </div>
 
       {list.length === 0 ? (
-        <div className="text-center text-stone-400 text-sm py-8">
+        <div className="text-center text-gray-500 text-sm py-8">
           {tab === "done" ? "暂无已完成" : "暂无已删除"}
         </div>
       ) : (
