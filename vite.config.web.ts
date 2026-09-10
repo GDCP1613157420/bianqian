@@ -2,7 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
-// 浏览器单文件构建：把 Tauri 相关模块换成桩，产物为纯前端
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -11,6 +10,12 @@ export default defineConfig({
         find: "@tauri-apps/plugin-notification",
         replacement: fileURLToPath(
           new URL("./src/stubs/notification.ts", import.meta.url)
+        ),
+      },
+      {
+        find: "@tauri-apps/plugin-opener",
+        replacement: fileURLToPath(
+          new URL("./src/stubs/opener.ts", import.meta.url)
         ),
       },
       {
