@@ -58,22 +58,21 @@ export default function NoteCard({
     ? formatScheduledLabel(note.scheduledStart!, note.scheduledEnd)
     : "";
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    const t = e.touches[0];
-    startXRef.current = t.clientX;
-    startYRef.current = t.clientY;
+  // 统一用 PointerEvents 兼顾鼠标拖动和触屏滑动（之前只用 onTouch*，桌面端鼠标拖不动）
+  const beginDrag = (clientX: number, clientY: number) => {
+    startXRef.current = clientX;
+    startYRef.current = clientY;
     draggingRef.current = true;
   };
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const moveDrag = (clientX: number, clientY: number) => {
     if (!draggingRef.current) return;
-    const t = e.touches[0];
-    const dx = t.clientX - startXRef.current;
-    const dy = t.clientY - startYRef.current;
+    const dx = clientX - startXRef.current;
+    const dy = clientY - startYRef.current;
     if (Math.abs(dx) > Math.abs(dy) && dx < 0) {
       setSwipeX(Math.max(dx, -SWIPE_THRESHOLD - 20));
     }
   };
-  const handleTouchEnd = () => {
+  const endDrag = () => {
     draggingRef.current = false;
     if (swipeX < -SWIPE_THRESHOLD) {
       setSwipeX(-SWIPE_THRESHOLD);
@@ -91,6 +90,21 @@ export default function NoteCard({
     } else {
       setSwipeX(0);
     }
+  };
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    beginDrag(e.clientX, e.clientY);
+  };
+  const handlePointerMove = (e: React.PointerEvent) => {
+    moveDrag(e.clientX, e.clientY);
+  };
+  const handlePointerUp = () => {
+    endDrag();
+  };
+  const handlePointerCancel = () => {
+    draggingRef.current = false;
+    setSwipeX(0);
   };
 
   const handleConfirmDelete = () => {
@@ -114,13 +128,13 @@ export default function NoteCard({
         </button>
         <div className="flex-1 min-w-0">
           <div
-            className="text-sm font-medium text-stone-600 line-through cursor-pointer hover:underline"
+            className="text-sm font-medium text-gray-700 line-through cursor-pointer hover:underline"
             onClick={() => onSelect(note.id)}
           >
             {title}
           </div>
           {body && (
-            <div className="text-xs text-stone-400 line-clamp-2 mt-0.5">{body}</div>
+            <div className="text-xs text-gray-500 line-clamp-2 mt-0.5">{body}</div>
           )}
         </div>
         <button
@@ -136,9 +150,9 @@ export default function NoteCard({
 
   if (note.status === "deleted") {
     return (
-      <div className="p-2 rounded-lg bg-stone-50 border border-stone-200 flex items-start gap-2">
+      <div className="p-2 rounded-lg bg-white border border-emerald-200 flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-stone-400 line-through truncate">
+          <div className="text-sm font-medium text-gray-500 line-through truncate">
             {title}
           </div>
         </div>
@@ -178,9 +192,10 @@ export default function NoteCard({
           transform: `translateX(${swipeX}px)`,
           transition: draggingRef.current ? "none" : "transform 0.2s",
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
       >
         <div className="flex items-start gap-2">
           <button
@@ -190,14 +205,14 @@ export default function NoteCard({
           />
           <div className="flex-1 min-w-0">
             <div
-              className="text-sm font-bold text-stone-700 cursor-pointer hover:underline"
+              className="text-sm font-bold text-gray-800 cursor-pointer hover:underline"
               onClick={() => onSelect(note.id)}
             >
               {title}
             </div>
             {body && (
               <div
-                className="text-xs text-stone-500 line-clamp-2 mt-0.5 cursor-pointer"
+                className="text-xs text-gray-600 line-clamp-2 mt-0.5 cursor-pointer"
                 onClick={() => onSelect(note.id)}
               >
                 {body}
@@ -213,7 +228,7 @@ export default function NoteCard({
                       ? "bg-blue-100 text-blue-700"
                       : sStatus === "ongoing"
                       ? "bg-amber-100 text-amber-700"
-                      : "bg-stone-100 text-stone-500"
+                      : "bg-emerald-50 text-gray-600"
                   }`}
                   title={scheduleLabel}
                 >
@@ -223,7 +238,7 @@ export default function NoteCard({
                     ? `▶️ 进行中`
                     : `✓ 已过`}
                 </span>
-                <span className="text-[10px] text-stone-400">{scheduleLabel}</span>
+                <span className="text-[10px] text-gray-500">{scheduleLabel}</span>
               </div>
             )}
 
@@ -233,13 +248,13 @@ export default function NoteCard({
                 {note.fileLinks.slice(0, 3).map((fl) => (
                   <span
                     key={fl.id}
-                    className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500"
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-gray-600"
                   >
                     {fl.kind === "folder" ? "📁" : fl.kind === "url" ? "🔗" : "📄"} {fl.label}
                   </span>
                 ))}
                 {note.fileLinks.length > 3 && (
-                  <span className="text-[10px] text-stone-400">
+                  <span className="text-[10px] text-gray-500">
                     +{note.fileLinks.length - 3}
                   </span>
                 )}
@@ -248,7 +263,7 @@ export default function NoteCard({
           </div>
           <button
             onClick={() => onEdit(note.id)}
-            className="text-stone-400 hover:text-stone-700 text-sm shrink-0"
+            className="text-gray-500 hover:text-gray-800 text-sm shrink-0"
             title="编辑"
           >
             ✏️
