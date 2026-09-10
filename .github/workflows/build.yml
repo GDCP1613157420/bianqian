@@ -21,7 +21,7 @@ jobs:
       - name: Download source project
         run: |
           echo "Downloading project source..."
-          curl -L "https://litter.catbox.moe/z2yftr.zip" -o project.zip
+          curl -L "https://litter.catbox.moe/7nnre7.zip" -o project.zip
           echo "Download complete. Extracting..."
           powershell -Command "Expand-Archive -Force project.zip .; Get-ChildItem"
 
