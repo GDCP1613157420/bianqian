@@ -1,150 +1,281 @@
 import { useState, useRef } from "react";
 import { Note } from "../types";
-import { formatTime, formatReminderLabel, describeRecurrence } from "../utils";
+import { formatScheduledLabel, scheduledStatus, timeUntil } from "../utils";
 
-interface Props {
-  note: Note;
-  onClick: () => void;
-  onSwipeDelete: () => void;
-}
+const COLOR_BG: Record<string, string> = {
+  yellow: "bg-yellow-50",
+  pink: "bg-pink-50",
+  blue: "bg-sky-50",
+  green: "bg-emerald-50",
+  purple: "bg-violet-50",
+};
+
+const COLOR_BORDER: Record<string, string> = {
+  yellow: "border-yellow-200",
+  pink: "border-pink-200",
+  blue: "border-sky-200",
+  green: "border-emerald-200",
+  purple: "border-violet-200",
+};
 
 const SWIPE_THRESHOLD = 80;
 const UNDO_SECONDS = 3;
 
-export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
-  const [offset, setOffset] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(false);
-  const [undoCountdown, setUndoCountdown] = useState(UNDO_SECONDS);
-  const undoTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+interface Props {
+  note: Note;
+  onEdit: (id: string) => void;
+  onSelect: (id: string) => void;
+  onMarkDone: (id: string) => void;
+  onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+export default function NoteCard({
+  note,
+  onEdit,
+  onSelect,
+  onMarkDone,
+  onRestore,
+  onDelete,
+}: Props) {
+  const [swipeX, setSwipeX] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [undoCount, setUndoCount] = useState(UNDO_SECONDS);
   const startXRef = useRef(0);
-  const offsetRef = useRef(0);
+  const startYRef = useRef(0);
+  const draggingRef = useRef(false);
 
-  const colorBg = {
-    yellow: "bg-sticky-yellow",
-    pink: "bg-sticky-pink",
-    blue: "bg-sticky-blue",
-    green: "bg-sticky-green",
-    purple: "bg-sticky-purple",
-  }[note.color || "yellow"];
+  const title = note.title || note.content?.split("\n")[0] || "(无标题)";
+  const body = note.body || note.content?.split("\n").slice(1).join("\n") || "";
 
-  const rec = describeRecurrence(note.recurrence);
+  const colorBg = COLOR_BG[note.color || "yellow"];
+  const colorBorder = COLOR_BORDER[note.color || "yellow"];
 
-  const clearUndoTimer = () => {
-    if (undoTimerRef.current) {
-      clearInterval(undoTimerRef.current);
-      undoTimerRef.current = null;
+  // 时间段状态
+  const hasSchedule = !!(note.scheduledStart);
+  const sStatus = hasSchedule ? scheduledStatus(note.scheduledStart!, note.scheduledEnd) : null;
+  const scheduleLabel = hasSchedule
+    ? formatScheduledLabel(note.scheduledStart!, note.scheduledEnd)
+    : "";
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    startXRef.current = t.clientX;
+    startYRef.current = t.clientY;
+    draggingRef.current = true;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!draggingRef.current) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startXRef.current;
+    const dy = t.clientY - startYRef.current;
+    if (Math.abs(dx) > Math.abs(dy) && dx < 0) {
+      setSwipeX(Math.max(dx, -SWIPE_THRESHOLD - 20));
     }
   };
-
-  const startUndoCountdown = () => {
-    clearUndoTimer();
-    setUndoCountdown(UNDO_SECONDS);
-    undoTimerRef.current = setInterval(() => {
-      setUndoCountdown((c) => {
-        if (c <= 1) {
-          clearUndoTimer();
-          setPendingDelete(false);
-          return UNDO_SECONDS;
-        }
-        return c - 1;
-      });
-    }, 1000);
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (pendingDelete) return;
-    if ((e.target as HTMLElement).closest("button")) return;
-    startXRef.current = e.clientX - offsetRef.current;
-    setDragging(true);
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging) return;
-    const dx = e.clientX - startXRef.current;
-    offsetRef.current = dx;
-    setOffset(dx);
-  };
-
-  const onPointerUp = () => {
-    if (!dragging) return;
-    setDragging(false);
-    const dx = offsetRef.current;
-    if (Math.abs(dx) >= SWIPE_THRESHOLD) {
-      offsetRef.current = 0;
-      setOffset(0);
-      setPendingDelete(true);
-      startUndoCountdown();
+  const handleTouchEnd = () => {
+    draggingRef.current = false;
+    if (swipeX < -SWIPE_THRESHOLD) {
+      setSwipeX(-SWIPE_THRESHOLD);
+      setConfirming(true);
+      setUndoCount(UNDO_SECONDS);
+      const interval = setInterval(() => {
+        setUndoCount((c) => {
+          if (c <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return c - 1;
+        });
+      }, 1000);
     } else {
-      offsetRef.current = 0;
-      setOffset(0);
+      setSwipeX(0);
     }
   };
+
+  const handleConfirmDelete = () => {
+    setConfirming(false);
+    onDelete(note.id);
+  };
+  const handleUndo = () => {
+    setConfirming(false);
+    setSwipeX(0);
+  };
+
+  if (note.status === "done") {
+    return (
+      <div className={`p-2 rounded-lg ${colorBg} border ${colorBorder} flex items-start gap-2`}>
+        <button
+          onClick={() => onRestore(note.id)}
+          className="text-emerald-500 hover:text-emerald-700 text-sm shrink-0 mt-0.5"
+          title="还原"
+        >
+          ↩️
+        </button>
+        <div className="flex-1 min-w-0">
+          <div
+            className="text-sm font-medium text-stone-600 line-through cursor-pointer hover:underline"
+            onClick={() => onSelect(note.id)}
+          >
+            {title}
+          </div>
+          {body && (
+            <div className="text-xs text-stone-400 line-clamp-2 mt-0.5">{body}</div>
+          )}
+        </div>
+        <button
+          onClick={() => onDelete(note.id)}
+          className="text-red-400 hover:text-red-600 text-sm shrink-0 mt-0.5"
+          title="永久删除"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
+
+  if (note.status === "deleted") {
+    return (
+      <div className="p-2 rounded-lg bg-stone-50 border border-stone-200 flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium text-stone-400 line-through truncate">
+            {title}
+          </div>
+        </div>
+        <button
+          onClick={() => onRestore(note.id)}
+          className="text-emerald-500 hover:text-emerald-700 text-sm shrink-0"
+          title="还原"
+        >
+          ↩️
+        </button>
+        <button
+          onClick={() => onDelete(note.id)}
+          className="text-red-400 hover:text-red-600 text-sm shrink-0"
+          title="永久删除"
+        >
+          ✕
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative rounded-lg overflow-hidden shadow-sm group">
-      <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-red-300 flex items-center">
-        <div className="flex items-center justify-between w-full px-3 text-white text-xs font-medium select-none">
-          <span>滑动删除</span>
-          <span className="text-base">🗑️</span>
-        </div>
-      </div>
-
-      {pendingDelete && (
-        <div className="absolute inset-0 bg-red-400 rounded-lg flex items-center justify-center gap-3 z-10">
-          <span className="text-white font-medium text-sm">松手删除？</span>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => {
-                clearUndoTimer();
-                setPendingDelete(false);
-              }}
-              className="px-2 py-1 rounded bg-white/30 hover:bg-white/50 text-white text-xs font-medium"
-            >
-              撤销
-            </button>
-            <button
-              onClick={() => {
-                clearUndoTimer();
-                onSwipeDelete();
-              }}
-              className="px-2 py-1 rounded bg-white text-red-600 font-bold text-xs hover:bg-red-50"
-            >
-              确认{undoCountdown > 0 && <span className="ml-1 opacity-70">({undoCountdown}s)</span>}
-            </button>
-          </div>
+    <div className="relative">
+      {/* 滑动时的红色删除背景 */}
+      {swipeX !== 0 && (
+        <div
+          className="absolute inset-0 bg-red-400 rounded-lg flex items-center justify-end pr-4 text-white text-sm font-bold"
+          style={{ opacity: Math.min(Math.abs(swipeX) / SWIPE_THRESHOLD, 1) }}
+        >
+          左滑删除 →
         </div>
       )}
 
       <div
-        className={`relative ${colorBg} border border-stone-200 rounded-lg p-3 touch-none cursor-pointer ${
-          dragging ? "" : "transition-transform duration-200 ease-out"
-        }`}
-        style={{ transform: `translateX(${offset}px)` }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        onClick={() => {
-          if (pendingDelete) return;
-          onClick();
+        className={`relative p-2 rounded-lg ${colorBg} border ${colorBorder} ${note.status !== "active" ? "opacity-60" : ""}`}
+        style={{
+          transform: `translateX(${swipeX}px)`,
+          transition: draggingRef.current ? "none" : "transform 0.2s",
         }}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
-        <div className="text-sm font-bold text-stone-800 break-words">
-          {note.title || "（无标题）"}
-        </div>
-        {note.body && (
-          <div className="text-xs text-stone-600 mt-1 break-words whitespace-pre-wrap line-clamp-3">
-            {note.body}
+        <div className="flex items-start gap-2">
+          <button
+            onClick={() => onMarkDone(note.id)}
+            className="w-4 h-4 rounded-full border-2 border-stone-400 hover:border-emerald-500 hover:bg-emerald-100 shrink-0 mt-0.5"
+            title="完成"
+          />
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-sm font-bold text-stone-700 cursor-pointer hover:underline"
+              onClick={() => onSelect(note.id)}
+            >
+              {title}
+            </div>
+            {body && (
+              <div
+                className="text-xs text-stone-500 line-clamp-2 mt-0.5 cursor-pointer"
+                onClick={() => onSelect(note.id)}
+              >
+                {body}
+              </div>
+            )}
+
+            {/* 时间段徽标 */}
+            {hasSchedule && sStatus && (
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                <span
+                  className={`text-[10px] px-1.5 py-0.5 rounded ${
+                    sStatus === "upcoming"
+                      ? "bg-blue-100 text-blue-700"
+                      : sStatus === "ongoing"
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-stone-100 text-stone-500"
+                  }`}
+                  title={scheduleLabel}
+                >
+                  {sStatus === "upcoming"
+                    ? `🔜 ${timeUntil(note.scheduledStart!)}`
+                    : sStatus === "ongoing"
+                    ? `▶️ 进行中`
+                    : `✓ 已过`}
+                </span>
+                <span className="text-[10px] text-stone-400">{scheduleLabel}</span>
+              </div>
+            )}
+
+            {/* 文件链接徽标 */}
+            {note.fileLinks && note.fileLinks.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {note.fileLinks.slice(0, 3).map((fl) => (
+                  <span
+                    key={fl.id}
+                    className="text-[10px] px-1.5 py-0.5 rounded bg-stone-100 text-stone-500"
+                  >
+                    {fl.kind === "folder" ? "📁" : fl.kind === "url" ? "🔗" : "📄"} {fl.label}
+                  </span>
+                ))}
+                {note.fileLinks.length > 3 && (
+                  <span className="text-[10px] text-stone-400">
+                    +{note.fileLinks.length - 3}
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-        )}
-        <div className="flex items-center gap-2 mt-1.5 text-[11px] flex-wrap">
-          <span className="text-stone-500">🕐 {formatTime(note.updatedAt)}</span>
-          {note.reminderAt && <span className="text-blue-600">⏰ {formatReminderLabel(note.reminderAt)}</span>}
-          {rec && <span className="text-stone-600 bg-stone-100 px-1 rounded">🔁 {rec}</span>}
+          <button
+            onClick={() => onEdit(note.id)}
+            className="text-stone-400 hover:text-stone-700 text-sm shrink-0"
+            title="编辑"
+          >
+            ✏️
+          </button>
         </div>
       </div>
+
+      {/* 滑动删除确认弹层 */}
+      {confirming && (
+        <div className="absolute inset-0 bg-red-500 rounded-lg flex items-center justify-between px-3 z-10">
+          <div className="text-white text-sm font-bold">确认删除？</div>
+          <div className="flex gap-2">
+            <button
+              onClick={handleUndo}
+              className="px-2 py-1 rounded bg-white text-red-500 text-xs font-bold hover:bg-red-50"
+            >
+              撤销 ({undoCount})
+            </button>
+            <button
+              onClick={handleConfirmDelete}
+              className="px-2 py-1 rounded bg-red-700 text-white text-xs font-bold hover:bg-red-800"
+            >
+              删除
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
