@@ -5,7 +5,15 @@
 body {
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
   user-select: none;
+  font-size: 14px; /* 基础字号从 12px 提到 14px */
 }
+
+/* 全局降饱和度：便签背景偏柔和 */
+.bg-sticky-yellow { background-color: #fdf6e3 !important; }
+.bg-sticky-pink   { background-color: #f0e0e8 !important; }
+.bg-sticky-blue   { background-color: #e0e8f0 !important; }
+.bg-sticky-green  { background-color: #e8f0e0 !important; }
+.bg-sticky-purple { background-color: #e8e0f0 !important; }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
@@ -15,11 +23,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.35);
+  background: rgba(0, 0, 0, 0.3);
 }
 
 /* 拖动调整大小手柄 */
@@ -32,7 +40,7 @@ body {
   cursor: se-resize;
 }
 
-/* line-clamp 工具（如果 Tailwind 版本太旧）*/
+/* line-clamp 工具 */
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -52,3 +60,15 @@ body {
   overflow: hidden;
 }
 
+/* 详情面板：浮在 APP 外部左侧（fixed 定位） */
+.detail-panel-overlay {
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 300px;
+  z-index: 9999;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
+  border-right: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0 12px 12px 0;
+}
