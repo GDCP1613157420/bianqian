@@ -4,8 +4,8 @@ import { formatTime, formatReminderLabel, describeRecurrence } from "../utils";
 
 interface Props {
   note: Note;
-  onClick: () => void; // 点击主体 → 打开详情面板
-  onSwipeDelete: () => void; // 滑动确认后删除
+  onClick: () => void;
+  onSwipeDelete: () => void;
 }
 
 const SWIPE_THRESHOLD = 80;
@@ -22,10 +22,10 @@ export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
 
   const colorBg = {
     yellow: "bg-sticky-yellow",
-    pink: "bg-pink-200",
-    blue: "bg-blue-200",
-    green: "bg-green-200",
-    purple: "bg-purple-200",
+    pink: "bg-sticky-pink",
+    blue: "bg-sticky-blue",
+    green: "bg-sticky-green",
+    purple: "bg-sticky-purple",
   }[note.color || "yellow"];
 
   const rec = describeRecurrence(note.recurrence);
@@ -84,7 +84,7 @@ export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
 
   return (
     <div className="relative rounded-lg overflow-hidden shadow-sm group">
-      <div className="absolute inset-0 bg-gradient-to-r from-red-500 to-red-400 flex items-center">
+      <div className="absolute inset-0 bg-gradient-to-r from-red-400 to-red-300 flex items-center">
         <div className="flex items-center justify-between w-full px-3 text-white text-xs font-medium select-none">
           <span>滑动删除</span>
           <span className="text-base">🗑️</span>
@@ -92,7 +92,7 @@ export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
       </div>
 
       {pendingDelete && (
-        <div className="absolute inset-0 bg-red-500 rounded-lg flex items-center justify-center gap-3 z-10">
+        <div className="absolute inset-0 bg-red-400 rounded-lg flex items-center justify-center gap-3 z-10">
           <span className="text-white font-medium text-sm">松手删除？</span>
           <div className="flex items-center gap-1">
             <button
@@ -118,7 +118,7 @@ export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
       )}
 
       <div
-        className={`relative ${colorBg} border border-amber-200 rounded-lg p-3 touch-none cursor-pointer ${
+        className={`relative ${colorBg} border border-stone-200 rounded-lg p-3 touch-none cursor-pointer ${
           dragging ? "" : "transition-transform duration-200 ease-out"
         }`}
         style={{ transform: `translateX(${offset}px)` }}
@@ -131,18 +131,18 @@ export default function NoteCard({ note, onClick, onSwipeDelete }: Props) {
           onClick();
         }}
       >
-        <div className="text-sm font-bold text-gray-800 break-words">
+        <div className="text-sm font-bold text-stone-800 break-words">
           {note.title || "（无标题）"}
         </div>
         {note.body && (
-          <div className="text-xs text-gray-700 mt-1 break-words whitespace-pre-wrap line-clamp-3">
+          <div className="text-xs text-stone-600 mt-1 break-words whitespace-pre-wrap line-clamp-3">
             {note.body}
           </div>
         )}
-        <div className="flex items-center gap-2 mt-1.5 text-[10px] flex-wrap">
-          <span className="text-amber-600">🕐 {formatTime(note.updatedAt)}</span>
+        <div className="flex items-center gap-2 mt-1.5 text-[11px] flex-wrap">
+          <span className="text-stone-500">🕐 {formatTime(note.updatedAt)}</span>
           {note.reminderAt && <span className="text-blue-600">⏰ {formatReminderLabel(note.reminderAt)}</span>}
-          {rec && <span className="text-amber-700 bg-amber-100 px-1 rounded">🔁 {rec}</span>}
+          {rec && <span className="text-stone-600 bg-stone-100 px-1 rounded">🔁 {rec}</span>}
         </div>
       </div>
     </div>
