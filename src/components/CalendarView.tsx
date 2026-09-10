@@ -66,14 +66,14 @@ export default function CalendarView({ notes, selectedDate, onSelectDate }: Prop
       <div className="flex items-center justify-between">
         <button
           onClick={prevMonth}
-          className="w-7 h-7 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 text-sm font-bold"
+          className="w-7 h-7 rounded bg-emerald-50 text-gray-700 hover:bg-emerald-200 text-sm font-bold"
         >
           ‹
         </button>
-        <div className="text-sm font-bold text-stone-700">{monthLabel}</div>
+        <div className="text-sm font-bold text-gray-800">{monthLabel}</div>
         <button
           onClick={nextMonth}
-          className="w-7 h-7 rounded bg-stone-100 text-stone-600 hover:bg-stone-200 text-sm font-bold"
+          className="w-7 h-7 rounded bg-emerald-50 text-gray-700 hover:bg-emerald-200 text-sm font-bold"
         >
           ›
         </button>
@@ -83,14 +83,14 @@ export default function CalendarView({ notes, selectedDate, onSelectDate }: Prop
         onClick={goToday}
         className={`text-xs rounded py-1 transition-colors ${
           year === now.getFullYear() && month === now.getMonth()
-            ? "bg-stone-200 text-stone-600 cursor-default"
-            : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+            ? "bg-emerald-100 text-gray-700 cursor-default"
+            : "bg-emerald-50 text-gray-700 hover:bg-emerald-200"
         }`}
       >
         回到本月
       </button>
 
-      <div className="grid grid-cols-7 text-center text-xs text-stone-500 font-medium">
+      <div className="grid grid-cols-7 text-center text-xs text-gray-600 font-medium">
         {WEEK_HEADERS.map((w) => (
           <div key={w} className="py-0.5">{w}</div>
         ))}
@@ -110,12 +110,12 @@ export default function CalendarView({ notes, selectedDate, onSelectDate }: Prop
               onClick={() => onSelectDate(ds)}
               className={`h-10 rounded-lg flex flex-col items-center justify-center relative transition-colors ${
                 isSelected
-                  ? "bg-stone-300 text-stone-800 font-bold"
+                  ? "bg-emerald-200 text-gray-900 font-bold"
                   : isToday
-                  ? "bg-stone-200 text-stone-800 font-bold"
+                  ? "bg-emerald-100 text-gray-900 font-bold"
                   : isWeekend
-                  ? "text-stone-400 hover:bg-stone-100"
-                  : "text-stone-600 hover:bg-stone-100"
+                  ? "text-gray-500 hover:bg-emerald-100"
+                  : "text-gray-700 hover:bg-emerald-100"
               }`}
             >
               <span className="text-sm leading-none">{day}</span>
@@ -140,14 +140,14 @@ export default function CalendarView({ notes, selectedDate, onSelectDate }: Prop
         })}
       </div>
 
-      <div className="flex items-center gap-3 text-[11px] text-stone-500 mt-1 px-1">
+      <div className="flex items-center gap-3 text-[11px] text-gray-600 mt-1 px-1">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full bg-stone-400 inline-block" /> 有便签
         </span>
         <span className="flex items-center gap-1">
-          <span className="w-2 h-2 rounded-full bg-stone-200 inline-block border border-stone-300" /> 今天
+          <span className="w-2 h-2 rounded-full bg-emerald-100 inline-block border border-emerald-300" /> 今天
         </span>
-        <span className="text-stone-400">点击日期可查看当天便签</span>
+        <span className="text-gray-500">点击日期可查看当天便签</span>
       </div>
     </div>
   );
