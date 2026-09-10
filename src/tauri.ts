@@ -15,9 +15,48 @@ export interface PreviewWindow {
 export async function getAppWindow(): Promise<PreviewWindow | null> {
   if (!isTauri()) return null;
   try {
-    const { getCurrentWindow } = await import("@tauri-apps/api/window");
-    return getCurrentWindow() as unknown as PreviewWindow;
+    const mod = await import(/* @vite-ignore */ "@tauri-apps/api/window");
+    return (mod as any).getCurrentWindow() as unknown as PreviewWindow;
   } catch {
     return null;
+  }
+}
+
+// 打开本地文件 / 文件夹 / URL
+// kind: "file" / "folder" / "url"
+export async function openExternal(
+  path: string,
+  kind: "file" | "folder" | "url"
+): Promise<boolean> {
+  if (!path) return false;
+  if (isTauri()) {
+    try {
+      // @ts-ignore - dynamic import in Tauri context
+      const mod = await import("@tauri-apps/plugin-opener");
+      const opener = mod as any;
+      if (kind === "url") {
+        await opener.openUrl(path);
+      } else {
+        await opener.openPath(path);
+      }
+      return true;
+    } catch (e) {
+      console.error("[openExternal tauri]", e);
+      return false;
+    }
+  }
+  // 浏览器预览：用 window.open 兜底
+  try {
+    if (kind === "url") {
+      const url = /^https?:\/\//i.test(path) ? path : `https://${path}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+      return true;
+    }
+    alert(
+      `【浏览器预览模式】\n无法直接打开本地 ${kind === "folder" ? "文件夹" : "文件"}：\n${path}\n\n请打包为桌面应用后使用此功能。`
+    );
+    return false;
+  } catch {
+    return false;
   }
 }
