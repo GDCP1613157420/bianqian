@@ -55,13 +55,13 @@ export default function HierarchicalList({
 function YearBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
   const [open, setOpen] = useState(true);
   return (
-    <div className="border border-stone-200 rounded-lg overflow-hidden">
+    <div className="border border-emerald-200 rounded-lg overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full px-3 py-2 bg-stone-100 text-left text-sm font-bold text-stone-700 hover:bg-stone-200 flex justify-between items-center"
+        className="w-full px-3 py-2 bg-emerald-50 text-left text-sm font-bold text-gray-800 hover:bg-emerald-200 flex justify-between items-center"
       >
         <span>📅 {node.year} 年</span>
-        <span className="text-xs text-stone-500">
+        <span className="text-xs text-gray-600">
           {open ? "▼" : "▶"} 共 {node.total}
         </span>
       </button>
@@ -90,10 +90,10 @@ function MonthBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }:
     <div className="border border-stone-100 rounded">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full px-2 py-1.5 bg-stone-50 text-left text-xs font-bold text-stone-600 hover:bg-stone-100 flex justify-between items-center"
+        className="w-full px-2 py-1.5 bg-white text-left text-xs font-bold text-gray-700 hover:bg-emerald-100 flex justify-between items-center"
       >
         <span>📆 {node.label}</span>
-        <span className="text-[10px] text-stone-400">
+        <span className="text-[10px] text-gray-500">
           {open ? "▼" : "▶"} {node.total}
         </span>
       </button>
@@ -119,7 +119,7 @@ function MonthBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }:
 function DayBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
   return (
     <div className="pl-1">
-      <div className="text-[11px] text-stone-500 font-medium px-1 py-0.5">
+      <div className="text-[11px] text-gray-600 font-medium px-1 py-0.5">
         {node.label}（{node.notes.length}）
       </div>
       <div className="space-y-1">
@@ -170,8 +170,8 @@ function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: an
 
   if (note.status === "deleted") {
     return (
-      <div className="p-1.5 rounded bg-stone-50 border border-stone-100 flex items-center gap-1.5">
-        <span className="text-stone-400 line-through text-xs truncate flex-1">{title}</span>
+      <div className="p-1.5 rounded bg-white border border-stone-100 flex items-center gap-1.5">
+        <span className="text-gray-500 line-through text-xs truncate flex-1">{title}</span>
         <button onClick={() => onRestore(note.id)} className="text-emerald-500 text-[10px]">
           ↩
         </button>
@@ -195,14 +195,14 @@ function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: an
       <div className="flex-1 min-w-0">
         <div
           className={`text-sm font-medium cursor-pointer hover:underline ${
-            isDone ? "line-through text-stone-400" : "text-stone-700"
+            isDone ? "line-through text-gray-500" : "text-gray-800"
           }`}
           onClick={() => onSelect(note.id)}
         >
           {title}
         </div>
         {body && !isDone && (
-          <div className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">{body}</div>
+          <div className="text-[11px] text-gray-600 line-clamp-2 mt-0.5">{body}</div>
         )}
 
         {/* 时间段徽标 */}
@@ -214,7 +214,7 @@ function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: an
                   ? "bg-blue-100 text-blue-700"
                   : sStatus === "ongoing"
                   ? "bg-amber-100 text-amber-700"
-                  : "bg-stone-100 text-stone-500"
+                  : "bg-emerald-50 text-gray-600"
               }`}
             >
               {sStatus === "upcoming"
@@ -223,7 +223,7 @@ function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: an
                 ? `▶️ 进行中`
                 : `✓ 已过`}
             </span>
-            <span className="text-[10px] text-stone-400">{scheduleLabel}</span>
+            <span className="text-[10px] text-gray-500">{scheduleLabel}</span>
           </div>
         )}
 
@@ -233,25 +233,25 @@ function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: an
             {note.fileLinks.slice(0, 3).map((fl: any) => (
               <span
                 key={fl.id}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 text-stone-600 border border-stone-200"
+                className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 text-gray-700 border border-emerald-200"
               >
                 {fl.kind === "folder" ? "📁" : fl.kind === "url" ? "🔗" : "📄"} {fl.label}
               </span>
             ))}
             {note.fileLinks.length > 3 && (
-              <span className="text-[10px] text-stone-400">+{note.fileLinks.length - 3}</span>
+              <span className="text-[10px] text-gray-500">+{note.fileLinks.length - 3}</span>
             )}
           </div>
         )}
 
         {/* 归档信息 */}
         {archiveInfo && (
-          <div className="text-[10px] text-stone-400 mt-0.5">{archiveInfo}</div>
+          <div className="text-[10px] text-gray-500 mt-0.5">{archiveInfo}</div>
         )}
       </div>
       <button
         onClick={() => onEdit(note.id)}
-        className="text-stone-400 hover:text-stone-700 text-xs shrink-0"
+        className="text-gray-500 hover:text-gray-900 text-xs shrink-0"
         title="编辑"
       >
         ✏️
