@@ -1,190 +1,270 @@
 import { useState } from "react";
 import { Note } from "../types";
-import { YearNode, buildHierarchy, describeRecurrence, formatTime, formatReminderLabel } from "../utils";
+import { formatScheduledLabel, scheduledStatus, timeUntil } from "../utils";
+
+const COLOR_BG: Record<string, string> = {
+  yellow: "bg-yellow-50",
+  pink: "bg-pink-50",
+  blue: "bg-sky-50",
+  green: "bg-emerald-50",
+  purple: "bg-violet-50",
+};
+
+const COLOR_BORDER: Record<string, string> = {
+  yellow: "border-yellow-200",
+  pink: "border-pink-200",
+  blue: "border-sky-200",
+  green: "border-emerald-200",
+  purple: "border-violet-200",
+};
 
 interface Props {
-  notes: Note[];
-  onSelectNote: (n: Note) => void;
-  onMarkDone: (n: Note) => void;
-  onTrash: (n: Note) => void;
+  hierarchy: import("../utils").YearNode[];
+  onSelect: (id: string) => void;
+  onEdit: (id: string) => void;
+  onMarkDone: (id: string) => void;
+  onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
 }
 
-function getPeriod(note: Note): string {
-  const created = new Date(note.createdAt);
-  const done = note.doneAt ? new Date(note.doneAt) : new Date();
-  const diffMs = done.getTime() - created.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMin / 60);
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffMin < 1) return "刚刚";
-  if (diffMin < 60) return `${diffMin}分钟`;
-  if (diffHr < 24) return `${diffHr}小时`;
-  if (diffDay < 30) return `${diffDay}天`;
-  const diffMonth = Math.floor(diffDay / 30);
-  if (diffMonth < 12) return `${diffMonth}个月`;
-  return `${Math.floor(diffMonth / 12)}年`;
-}
-
-export default function HierarchicalList({ notes, onSelectNote, onMarkDone, onTrash }: Props) {
-  const tree = buildHierarchy(notes);
-
-  if (tree.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-10 text-stone-400">
-        <div className="text-4xl mb-2">📋</div>
-        <div className="text-sm">还没有任何便签</div>
-        <div className="text-[11px] text-stone-300 mt-1">点下方"+ 添加便签"开始记录</div>
-      </div>
-    );
-  }
-
+export default function HierarchicalList({
+  hierarchy,
+  onSelect,
+  onEdit,
+  onMarkDone,
+  onRestore,
+  onDelete,
+}: Props) {
   return (
-    <div className="space-y-1.5">
-      {tree.map((y) => (
-        <YearBlock key={y.year} year={y} onSelectNote={onSelectNote} onMarkDone={onMarkDone} onTrash={onTrash} />
+    <div className="space-y-2">
+      {hierarchy.map((y) => (
+        <YearBlock
+          key={y.year}
+          node={y}
+          onSelect={onSelect}
+          onEdit={onEdit}
+          onMarkDone={onMarkDone}
+          onRestore={onRestore}
+          onDelete={onDelete}
+        />
       ))}
     </div>
   );
 }
 
-function YearBlock({ year, onSelectNote, onMarkDone, onTrash }: { year: YearNode; onSelectNote: Props["onSelectNote"]; onMarkDone: Props["onMarkDone"]; onTrash: Props["onTrash"] }) {
+function YearBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
   const [open, setOpen] = useState(true);
-  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set([year.children[0]?.month].filter(Boolean)));
-
   return (
-    <div className="rounded-lg overflow-hidden border border-stone-200">
+    <div className="border border-stone-200 rounded-lg overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-2.5 py-1.5 bg-stone-200/50 hover:bg-stone-200 transition-colors"
+        className="w-full px-3 py-2 bg-stone-100 text-left text-sm font-bold text-stone-700 hover:bg-stone-200 flex justify-between items-center"
       >
-        <div className="flex items-center gap-1.5">
-          <span className="text-[11px] text-stone-600">{open ? "▼" : "▶"}</span>
-          <span className="text-sm font-bold text-stone-700">📅 {year.year} 年</span>
-        </div>
-        <span className="text-[11px] text-stone-600 bg-white/60 px-1.5 py-0.5 rounded-full">
-          {year.total} 条
+        <span>📅 {node.year} 年</span>
+        <span className="text-xs text-stone-500">
+          {open ? "▼" : "▶"} 共 {node.total}
         </span>
       </button>
-
       {open && (
-        <div className="bg-stone-50/40">
-          {year.children.map((m) => {
-            const isOpen = openMonths.has(m.month);
-            return (
-              <div key={m.month} className="border-t border-stone-200/60">
-                <button
-                  onClick={() => {
-                    const next = new Set(openMonths);
-                    if (isOpen) next.delete(m.month);
-                    else next.add(m.month);
-                    setOpenMonths(next);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-1.5 hover:bg-stone-100/60 transition-colors"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] text-stone-500">{isOpen ? "▼" : "▶"}</span>
-                    <span className="text-sm font-medium text-stone-700">🗓️ {m.label}</span>
-                  </div>
-                  <span className="text-[11px] text-stone-500">{m.total} 条</span>
-                </button>
-
-                {isOpen && (
-                  <div className="bg-white/40 px-2 pb-1.5 space-y-1">
-                    {m.children.map((d) => (
-                      <div key={d.date} className="mt-1">
-                        <div className="flex items-center gap-1.5 px-1 py-0.5">
-                          <span className="text-[11px] text-stone-500">
-                            {d.label}
-                          </span>
-                          <span className="text-[10px] text-stone-400">· {d.total} 条</span>
-                        </div>
-                        <div className="space-y-1">
-                          {d.notes.map((n) => (
-                            <NoteRow
-                              key={n.id}
-                              note={n}
-                              onClick={() => onSelectNote(n)}
-                              onDone={() => onMarkDone(n)}
-                              onTrash={() => onTrash(n)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        <div className="p-2 space-y-1.5">
+          {node.children.map((m: any) => (
+            <MonthBlock
+              key={m.month}
+              node={m}
+              onSelect={onSelect}
+              onEdit={onEdit}
+              onMarkDone={onMarkDone}
+              onRestore={onRestore}
+              onDelete={onDelete}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-function NoteRow({ note, onClick, onDone, onTrash }: { note: Note; onClick: () => void; onDone: () => void; onTrash: () => void }) {
-  const colorBg = {
-    yellow: "bg-sticky-yellow",
-    pink: "bg-sticky-pink",
-    blue: "bg-sticky-blue",
-    green: "bg-sticky-green",
-    purple: "bg-sticky-purple",
-  }[note.color || "yellow"];
+function MonthBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border border-stone-100 rounded">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-2 py-1.5 bg-stone-50 text-left text-xs font-bold text-stone-600 hover:bg-stone-100 flex justify-between items-center"
+      >
+        <span>📆 {node.label}</span>
+        <span className="text-[10px] text-stone-400">
+          {open ? "▼" : "▶"} {node.total}
+        </span>
+      </button>
+      {open && (
+        <div className="p-1.5 space-y-1">
+          {node.children.map((d: any) => (
+            <DayBlock
+              key={d.date}
+              node={d}
+              onSelect={onSelect}
+              onEdit={onEdit}
+              onMarkDone={onMarkDone}
+              onRestore={onRestore}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
-  const rec = describeRecurrence(note.recurrence);
-  const period = getPeriod(note);
+function DayBlock({ node, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
+  return (
+    <div className="pl-1">
+      <div className="text-[11px] text-stone-500 font-medium px-1 py-0.5">
+        {node.label}（{node.notes.length}）
+      </div>
+      <div className="space-y-1">
+        {node.notes.map((n: Note) => (
+          <NoteRow
+            key={n.id}
+            note={n}
+            onSelect={onSelect}
+            onEdit={onEdit}
+            onMarkDone={onMarkDone}
+            onRestore={onRestore}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function NoteRow({ note, onSelect, onEdit, onMarkDone, onRestore, onDelete }: any) {
+  const title = note.title || note.content?.split("\n")[0] || "(无标题)";
+  const body = note.body || note.content?.split("\n").slice(1).join("\n") || "";
+  const isDone = note.status === "done";
+  const colorBg = COLOR_BG[note.color || "yellow"];
+  const colorBorder = COLOR_BORDER[note.color || "yellow"];
+
+  const hasSchedule = !!note.scheduledStart;
+  const sStatus = hasSchedule ? scheduledStatus(note.scheduledStart!, note.scheduledEnd) : null;
+  const scheduleLabel = hasSchedule
+    ? formatScheduledLabel(note.scheduledStart!, note.scheduledEnd)
+    : "";
+
+  // 已完成便签显示归档信息
+  const archiveInfo = (() => {
+    if (note.status !== "done" || !note.doneAt) return null;
+    const start = new Date(note.createdAt);
+    const end = new Date(note.doneAt);
+    const ms = end.getTime() - start.getTime();
+    if (ms < 0) return null;
+    const mins = Math.floor(ms / 60000);
+    if (mins < 1) return "⏱ 刚刚完成";
+    if (mins < 60) return `⏱ ${mins}分钟完成`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `⏱ ${hrs}小时${mins % 60}分完成`;
+    const days = Math.floor(hrs / 24);
+    return `⏱ ${days}天${hrs % 24}小时完成`;
+  })();
+
+  if (note.status === "deleted") {
+    return (
+      <div className="p-1.5 rounded bg-stone-50 border border-stone-100 flex items-center gap-1.5">
+        <span className="text-stone-400 line-through text-xs truncate flex-1">{title}</span>
+        <button onClick={() => onRestore(note.id)} className="text-emerald-500 text-[10px]">
+          ↩
+        </button>
+        <button onClick={() => onDelete(note.id)} className="text-red-400 text-[10px]">
+          ✕
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div
-      onClick={onClick}
-      className={`group cursor-pointer rounded-md p-2.5 ${colorBg} border border-stone-200/60 hover:border-stone-400 hover:shadow-sm transition-all`}
-    >
-      <div className="flex items-start justify-between gap-1.5">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-stone-800 break-words line-clamp-1">
-              {note.title}
+    <div className={`p-1.5 rounded ${colorBg} border ${colorBorder} flex items-start gap-1.5`}>
+      <button
+        onClick={() => onMarkDone(note.id)}
+        className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 mt-0.5 ${
+          isDone
+            ? "border-emerald-500 bg-emerald-500"
+            : "border-stone-400 hover:border-emerald-500 hover:bg-emerald-100"
+        }`}
+      />
+      <div className="flex-1 min-w-0">
+        <div
+          className={`text-sm font-medium cursor-pointer hover:underline ${
+            isDone ? "line-through text-stone-400" : "text-stone-700"
+          }`}
+          onClick={() => onSelect(note.id)}
+        >
+          {title}
+        </div>
+        {body && !isDone && (
+          <div className="text-[11px] text-stone-500 line-clamp-2 mt-0.5">{body}</div>
+        )}
+
+        {/* 时间段徽标 */}
+        {hasSchedule && sStatus && !isDone && (
+          <div className="mt-1 flex flex-wrap items-center gap-1">
+            <span
+              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                sStatus === "upcoming"
+                  ? "bg-blue-100 text-blue-700"
+                  : sStatus === "ongoing"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-stone-100 text-stone-500"
+              }`}
+            >
+              {sStatus === "upcoming"
+                ? `🔜 ${timeUntil(note.scheduledStart!)}`
+                : sStatus === "ongoing"
+                ? `▶️ 进行中`
+                : `✓ 已过`}
             </span>
-            {rec && (
-              <span className="text-[10px] bg-stone-200 text-stone-700 px-1 py-0.5 rounded shrink-0">
-                🔁 {rec}
+            <span className="text-[10px] text-stone-400">{scheduleLabel}</span>
+          </div>
+        )}
+
+        {/* 文件链接 */}
+        {note.fileLinks && note.fileLinks.length > 0 && !isDone && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {note.fileLinks.slice(0, 3).map((fl: any) => (
+              <span
+                key={fl.id}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-white/60 text-stone-600 border border-stone-200"
+              >
+                {fl.kind === "folder" ? "📁" : fl.kind === "url" ? "🔗" : "📄"} {fl.label}
               </span>
+            ))}
+            {note.fileLinks.length > 3 && (
+              <span className="text-[10px] text-stone-400">+{note.fileLinks.length - 3}</span>
             )}
           </div>
-          {note.body && (
-            <div className="text-xs text-stone-600 mt-0.5 line-clamp-2 break-words whitespace-pre-wrap">
-              {note.body}
-            </div>
-          )}
-          <div className="flex items-center gap-2 text-[11px] text-stone-500 mt-1">
-            <span>🕐 {formatTime(note.updatedAt)}</span>
-            <span>⏱ {period}</span>
-            {note.reminderAt && <span>⏰ {formatReminderLabel(note.reminderAt)}</span>}
-          </div>
-        </div>
-        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDone();
-            }}
-            className="px-1.5 py-0.5 text-[11px] rounded bg-green-100 text-green-700 hover:bg-green-200"
-            title="标记完成"
-          >
-            ✅
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onTrash();
-            }}
-            className="px-1.5 py-0.5 text-[11px] rounded bg-red-50 text-red-500 hover:bg-red-100"
-            title="删除"
-          >
-            🗑️
-          </button>
-        </div>
+        )}
+
+        {/* 归档信息 */}
+        {archiveInfo && (
+          <div className="text-[10px] text-stone-400 mt-0.5">{archiveInfo}</div>
+        )}
       </div>
+      <button
+        onClick={() => onEdit(note.id)}
+        className="text-stone-400 hover:text-stone-700 text-xs shrink-0"
+        title="编辑"
+      >
+        ✏️
+      </button>
+      {isDone && (
+        <button
+          onClick={() => onDelete(note.id)}
+          className="text-red-400 hover:text-red-600 text-xs shrink-0"
+          title="删除"
+        >
+          ✕
+        </button>
+      )}
     </div>
   );
 }
