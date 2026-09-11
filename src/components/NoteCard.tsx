@@ -198,6 +198,11 @@ export default function NoteCard({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerCancel}
+        onClick={(e) => {
+          const tag = (e.target as HTMLElement).tagName;
+          if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'A') return;
+          if (swipeX === 0) onSelect(note.id);
+        }}
       >
         <div className="flex items-start gap-2">
           <button
