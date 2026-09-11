@@ -40,8 +40,12 @@ export async function openExternal(
         await opener.openPath(path);
       }
       return true;
-    } catch (e) {
+    } catch (e: any) {
       console.error("[openExternal tauri]", e);
+      const msg = e?.message || String(e) || "未知错误";
+      alert(
+        `【打开失败】\n路径：${path}\n错误：${msg}\n\n请检查：\n1. 文件/文件夹是否存在\n2. 路径是否完整（需含盘符，如 C:\\Users\\xxx）\n3. 路径中是否含特殊字符需要转义`
+      );
       return false;
     }
   }
@@ -58,5 +62,41 @@ export async function openExternal(
     return false;
   } catch {
     return false;
+  }
+}
+
+// 弹出原生文件/文件夹选择对话框（仅 Tauri 环境）
+// kind: "file" / "folder" / "url"
+export async function pickLocalPath(
+  kind: "file" | "folder" | "url"
+): Promise<string | null> {
+  if (!isTauri()) {
+    alert("【浏览器预览模式】\n选文件功能仅在桌面应用中可用。\n请手动输入完整路径。");
+    return null;
+  }
+  try {
+    // @ts-ignore - dynamic import in Tauri context
+    const mod = await import("@tauri-apps/plugin-dialog");
+    const dlg = mod as any;
+    if (kind === "folder") {
+      const p = await dlg.open({ directory: true, multiple: false });
+      return Array.isArray(p) ? (p[0] || null) : (p || null);
+    }
+    if (kind === "url") {
+      // URL 用 prompt 即可
+      const p = window.prompt("请输入 URL（http:// 或 https:// 开头）：", "https://");
+      return p && p.trim() ? p.trim() : null;
+    }
+    const p = await dlg.open({
+      directory: false,
+      multiple: false,
+      filters: [
+        { name: "所有文件", extensions: ["*"] },
+      ],
+    });
+    return Array.isArray(p) ? (p[0] || null) : (p || null);
+  } catch (e: any) {
+    console.error("[pickLocalPath]", e);
+    return null;
   }
 }
