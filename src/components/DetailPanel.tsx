@@ -9,7 +9,7 @@ import {
   timeUntil,
   formatReminderLabel,
 } from "../utils";
-import { openExternal } from "../tauri";
+import { openExternal, pickLocalPath } from "../tauri";
 import ReminderPicker from "./ReminderPicker";
 import RecurrenceEditor from "./RecurrenceEditor";
 
@@ -148,6 +148,19 @@ export default function DetailPanel({
   };
 
   const handlePickFile = async () => {
+    // Tauri 环境：调用原生对话框取真实路径
+    if (typeof window !== "undefined" && "__TAURI_INTERNALS__" in window) {
+      const p = await pickLocalPath(newFileKind);
+      if (p) {
+        // 从路径提取文件名作为默认 label
+        const sep = p.includes("\\") ? "\\" : "/";
+        const name = p.split(sep).filter(Boolean).pop() || p;
+        setNewFileLabel((cur) => cur || name);
+        setNewFilePath(p);
+      }
+      return;
+    }
+    // 浏览器预览：走 <input type="file"> 降级
     fileInputRef.current?.click();
   };
 
@@ -188,8 +201,9 @@ export default function DetailPanel({
               <button
                 onClick={() => onDelete(note.id)}
                 className="px-2 py-1 text-xs rounded bg-red-100 text-red-600 hover:bg-red-200"
+                title="移到回收站"
               >
-                ✕
+                🗑️
               </button>
             </>
           )}
