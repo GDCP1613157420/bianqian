@@ -29,13 +29,31 @@ export async function openExternal(
   kind: "file" | "folder" | "url"
 ): Promise<boolean> {
   if (!path) return false;
+  // 规范化路径：去掉 file:// 前缀、首尾引号与空白
+  path = String(path)
+    .trim()
+    .replace(/^file:\/\/\/?/i, "")
+    .replace(/^["']|["']$/g, "");
+  if (!path) return false;
   if (isTauri()) {
     try {
       // @ts-ignore - dynamic import in Tauri context
       const mod = await import("@tauri-apps/plugin-opener");
       const opener = mod as any;
       if (kind === "url") {
-        await opener.openUrl(path);
+        const url = /^https?:\/\//i.test(path) ? path : `https://${path}`;
+        await opener.openUrl(url);
+      } else if (kind === "folder") {
+        // 打开文件夹：优先 openPath，失败再退化为 revealItemInDir（在文件管理器选中该文件夹）
+        try {
+          await opener.openPath(path);
+        } catch (e1) {
+          try {
+            await opener.revealItemInDir(path);
+          } catch (e2) {
+            throw e1;
+          }
+        }
       } else {
         await opener.openPath(path);
       }
@@ -44,7 +62,7 @@ export async function openExternal(
       console.error("[openExternal tauri]", e);
       const msg = e?.message || String(e) || "未知错误";
       alert(
-        `【打开失败】\n路径：${path}\n错误：${msg}\n\n请检查：\n1. 文件/文件夹是否存在\n2. 路径是否完整（需含盘符，如 C:\\Users\\xxx）\n3. 路径中是否含特殊字符需要转义`
+        `【打开失败】\n类型：${kind === "folder" ? "文件夹" : kind === "url" ? "网址" : "文件"}\n路径：${path}\n错误：${msg}\n\n请检查：\n1. 文件/文件夹是否存在\n2. 路径是否完整（需含盘符，如 C:\\Users\\xxx）\n3. 路径中是否含特殊字符需要转义`
       );
       return false;
     }
@@ -57,7 +75,7 @@ export async function openExternal(
       return true;
     }
     alert(
-      `【浏览器预览模式】\n无法直接打开本地 ${kind === "folder" ? "文件夹" : "文件"}：\n${path}\n\n请打包为桌面应用后使用此功能。`
+      `【浏览器预览模式】\n无法直接打开本地 ${kind === "folder" ? "文件夹" : "文件"}：\n${path}\n\n请打包为桌面应用后使用此功能。必要时可手动复制上方路径到资源管理器打开。`
     );
     return false;
   } catch {
@@ -97,6 +115,8 @@ export async function pickLocalPath(
     return Array.isArray(p) ? (p[0] || null) : (p || null);
   } catch (e: any) {
     console.error("[pickLocalPath]", e);
+    const msg = e?.message || String(e) || "未知错误";
+    alert(`【选择失败】\n错误：${msg}\n\n若仍无法选择，可手动在下方输入框填写完整路径。`);
     return null;
   }
 }
