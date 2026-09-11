@@ -44,7 +44,6 @@ export default function App() {
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const firedRemindersRef = useRef<Set<string>>(new Set());
-  const detailWindowRef = useRef<any>(null);
 
   // 持久化
   useEffect(() => {
@@ -62,45 +61,6 @@ export default function App() {
     })();
   }, []);
 
-  // 详情面板用独立 Tauri 窗口（Tauri 模式下）
-  useEffect(() => {
-    if (!isTauri() || !selectedNoteId) {
-      detailWindowRef.current = null;
-      return;
-    }
-    // 已存在则聚焦
-    if (detailWindowRef.current) {
-      try {
-        detailWindowRef.current.setFocus();
-        detailWindowRef.current.emit && detailWindowRef.current.emit("note-selected", { id: selectedNoteId });
-        return;
-      } catch {
-        detailWindowRef.current = null;
-      }
-    }
-    (async () => {
-      try {
-        const mod = await import(/* @vite-ignore */ "@tauri-apps/api/webviewWindow");
-        const { WebviewWindow } = mod as any;
-        const w = new WebviewWindow(`detail-${selectedNoteId}`, {
-          url: `index.html?detail=${selectedNoteId}&mode=standalone`,
-          width: 320,
-          height: 600,
-          x: window.screenX - 330,
-          y: window.screenY,
-          decorations: false,
-          alwaysOnTop: true,
-          resizable: true,
-          title: "便签详情",
-        });
-        w.once && w.once("tauri://created", () => {
-          detailWindowRef.current = w;
-        });
-      } catch (e) {
-        console.error("[detail window]", e);
-      }
-    })();
-  }, [selectedNoteId]);
 
   // 提醒引擎
   useEffect(() => {
@@ -268,8 +228,8 @@ export default function App() {
     <>
       {/* 主窗口 */}
       <div className="h-screen w-full bg-white flex flex-col text-gray-900 text-sm">
-        {/* 顶栏 */}
-        <div className="flex items-center justify-between px-2 py-1.5 bg-emerald-100 border-b border-emerald-200">
+        {/* 顶栏 - 可拖动窗口区域 */}
+        <div className="flex items-center justify-between px-2 py-1.5 bg-emerald-100 border-b border-emerald-200" data-tauri-drag-region>
           <div className="flex items-center gap-1">
             <button
               onClick={() => { setView("list"); setListMode("all"); }}
@@ -581,8 +541,8 @@ export default function App() {
         </div>
       </div>
 
-      {/* 详情面板：浏览器预览下用 fixed 浮层；Tauri 下用独立窗口（已通过 useEffect 创建） */}
-      {!isTauri() && selectedNote && (
+      {/* 详情面板：内嵌浮层（exe 和浏览器统一渲染） */}
+      {selectedNote && (
         <div className="detail-panel-overlay">
           <DetailPanel
             note={selectedNote}
@@ -593,6 +553,6 @@ export default function App() {
           />
         </div>
       )}
-    </>
+  </>
   );
 }
