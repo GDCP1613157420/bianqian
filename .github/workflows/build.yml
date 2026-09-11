@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build App
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  build-windows:
     permissions:
       contents: write
     runs-on: windows-latest
@@ -66,4 +66,53 @@ jobs:
           path: |
             src-tauri/target/release/桌面便签.exe
             src-tauri/target/release/*.exe
+          retention-days: 30
+
+  build-android:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build web app
+        run: npx vite build --config vite.config.web.ts
+        env:
+          CI: true
+
+      - name: Sync Capacitor Android
+        run: npx cap sync android
+
+      - name: Build Android APK
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-sticky-notes-android
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
           retention-days: 30
