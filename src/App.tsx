@@ -11,6 +11,16 @@ import {
   describeRecurrence,
 } from "./utils";
 import { isTauri, getAppWindow } from "./tauri";
+import {
+  fullSync,
+  getStoredPat,
+  setStoredPat,
+  getGistId,
+  clearGistId,
+  getLastSyncTime,
+  formatLastSync,
+  SyncStatus,
+} from "./sync";
 import NoteCard from "./components/NoteCard";
 import CalendarView from "./components/CalendarView";
 import TrashView from "./components/TrashView";
@@ -45,10 +55,73 @@ export default function App() {
   const [editBody, setEditBody] = useState("");
   const firedRemindersRef = useRef<Set<string>>(new Set());
 
+  // 同步状态
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
+  const [syncMsg, setSyncMsg] = useState("");
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [syncPat, setSyncPat] = useState(() => getStoredPat());
+
   // 持久化
   useEffect(() => {
     saveNotes(notes);
   }, [notes]);
+
+  // 自动同步（保存后）
+  useEffect(() => {
+    const pat = getStoredPat();
+    const id = getGistId();
+    if (!pat) return;
+    (async () => {
+      try {
+        await fullSync(
+          notes, pat, id,
+          (msg) => setSyncMsg(msg)
+        );
+        setSyncStatus("success");
+        setSyncMsg(formatLastSync(getLastSyncTime()));
+      } catch (e: any) {
+        setSyncStatus("error");
+        setSyncMsg(e.message || "同步失败");
+      }
+    })();
+  }, [notes]);
+
+  const handleSync = async () => {
+    const pat = getStoredPat();
+    if (!pat) { setShowSyncSettings(true); return; }
+    setSyncStatus("syncing");
+    setSyncMsg("同步中…");
+    try {
+      const { notes: merged, changed } = await fullSync(
+        notes, pat, getGistId(),
+        (msg) => setSyncMsg(msg)
+      );
+      setNotes(merged);
+      setSyncStatus(changed ? "success" : "success");
+      setSyncMsg(formatLastSync(getLastSyncTime()));
+    } catch (e: any) {
+      setSyncStatus("error");
+      setSyncMsg(e.message || "同步失败");
+    }
+  };
+
+  const handleSaveSyncSettings = () => {
+    if (syncPat.trim()) {
+      setStoredPat(syncPat.trim());
+      setShowSyncSettings(false);
+      // 立即触发一次同步
+      handleSync();
+    }
+  };
+
+  const handleClearSync = () => {
+    setStoredPat("");
+    clearGistId();
+    setSyncPat("");
+    setSyncStatus("idle");
+    setSyncMsg("");
+    setShowSyncSettings(false);
+  };
 
   // 窗口置顶（仅 Tauri）
   useEffect(() => {
@@ -275,6 +348,20 @@ export default function App() {
             >
               📌{isAlwaysOnTop ? "已" : ""}
             </button>
+            {/* 同步状态指示 */}
+            <button
+              onClick={handleSync}
+              className={`${headerBtnCls} ${
+                syncStatus === "syncing" ? "bg-blue-100 text-blue-700 animate-pulse" :
+                syncStatus === "success" && syncMsg ? "bg-emerald-100 text-emerald-700" :
+                syncStatus === "error" ? "bg-red-100 text-red-700" :
+                ""
+              }`}
+              title={syncMsg || "同步到云端"}
+            >
+              {syncStatus === "syncing" ? "🔄" : syncStatus === "success" ? "✅" : syncStatus === "error" ? "⚠️" : "☁️"}
+            </button>
+            <button onClick={() => setShowSyncSettings(true)} className={headerBtnCls} title="同步设置">⚙️</button>
             <button onClick={handleMinimize} className={headerBtnCls} title="最小化">─</button>
             <button onClick={handleClose} className={headerBtnCls} title="关闭到托盘">✕</button>
           </div>
@@ -553,6 +640,65 @@ export default function App() {
           />
         </div>
       )}
-  </>
+
+      {/* 同步设置弹窗 */}
+      {showSyncSettings && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-xl shadow-2xl w-[300px] max-h-[80vh] overflow-y-auto">
+            <div className="bg-emerald-100 px-4 py-3 rounded-t-xl flex items-center justify-between">
+              <span className="font-bold text-gray-800">☁️ 云端同步设置</span>
+              <button onClick={() => setShowSyncSettings(false)} className="text-gray-500 hover:text-gray-800 text-lg">✕</button>
+            </div>
+            <div className="p-4 space-y-4 text-sm">
+              <div>
+                <div className="font-bold text-gray-700 mb-1">GitHub Token</div>
+                <input
+                  type="password"
+                  value={syncPat}
+                  onChange={(e) => setSyncPat(e.target.value)}
+                  placeholder="github_pat_xxxx…"
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                />
+                <div className="text-[11px] text-gray-500 mt-1">
+                  需要 GitHub 账号。创建 Token：
+                  <span className="text-blue-600">Settings → Developer settings → Personal access tokens → Tokens (classic)</span>
+                  ，勾选 <b>gist</b> 权限。
+                </div>
+              </div>
+              <div className="bg-blue-50 border border-blue-100 rounded p-2 text-[11px] text-blue-700">
+                📋 如何获取 Token：<br/>
+                1. github.com → 右上角头像 → Settings<br/>
+                2. 左侧 "Developer settings"<br/>
+                3. Personal access tokens → Tokens (classic)<br/>
+                4. Generate new token (classic)<br/>
+                5. 勾选 <b>gist</b> → Generate<br/>
+                6. 复制 Token 粘贴到上方
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveSyncSettings}
+                  className="flex-1 px-3 py-2 bg-emerald-500 text-white rounded font-bold hover:bg-emerald-600"
+                >
+                  保存并同步
+                </button>
+                {getStoredPat() && (
+                  <button
+                    onClick={handleClearSync}
+                    className="px-3 py-2 border border-red-300 text-red-600 rounded hover:bg-red-50 text-xs"
+                  >
+                    清除
+                  </button>
+                )}
+              </div>
+              {getStoredPat() && (
+                <div className="text-[11px] text-gray-500 text-center">
+                  已绑定 · 上次同步：{formatLastSync(getLastSyncTime())}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
