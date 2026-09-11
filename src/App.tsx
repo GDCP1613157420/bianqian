@@ -274,32 +274,37 @@ export default function App() {
             <button
               onClick={() => { setView("list"); setListMode("all"); }}
               className={`${headerBtnCls} ${view === "list" && listMode === "all" ? "bg-emerald-200 font-bold" : ""}`}
+             title="全部"
             >
-              📋 全部
+              📋
             </button>
             <button
               onClick={() => { setView("list"); setListMode("today"); }}
               className={`${headerBtnCls} ${view === "list" && listMode === "today" ? "bg-emerald-200 font-bold" : ""}`}
+             title="今天"
             >
-              ⭐ 今天
+              ⭐
             </button>
             <button
               onClick={() => setListMode("scheduled")}
               className={`${headerBtnCls} ${listMode === "scheduled" ? "bg-emerald-200 font-bold" : ""}`}
+             title="计划"
             >
-              📅 计划
+              📅
             </button>
             <button
               onClick={() => setView("calendar")}
               className={`${headerBtnCls} ${view === "calendar" ? "bg-emerald-200 font-bold" : ""}`}
+             title="日历"
             >
-              🗓 日历
+              🗓
             </button>
             <button
               onClick={() => setView("trash")}
               className={`${headerBtnCls} ${view === "trash" ? "bg-emerald-200 font-bold" : ""}`}
+             title="回收"
             >
-              🗑 回收
+              🗑
             </button>
           </div>
           <div className="flex items-center gap-1">
