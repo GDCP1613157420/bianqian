@@ -39,26 +39,24 @@ body {
 /* 详情面板：浏览器模式下浮在主窗口左侧外 */
 .detail-panel-overlay {
   position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: 320px;
+  top: 8px;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
   z-index: 9999;
-  box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
   background: #ffffff;
-  border-right: 1px solid #a8c9a9;
+  border: 2px solid #4a8a4f;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
-  animation: slideIn 0.2s ease-out;
+  animation: popIn 0.18s ease-out;
+  overflow: hidden;
 }
 
-@keyframes slideIn {
-  from { transform: translateX(-100%); opacity: 0; }
-  to   { transform: translateX(0);     opacity: 1; }
-}
-
-@media (max-width: 700px) {
-  .detail-panel-overlay { width: 100%; z-index: 10000; }
+@keyframes popIn {
+  from { transform: scale(0.92); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
 }
 
 input, textarea, select {
