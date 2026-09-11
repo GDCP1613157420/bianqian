@@ -67,60 +67,118 @@ export default function App() {
   // 同步状态
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncMsg, setSyncMsg] = useState("");
+  const [syncError, setSyncError] = useState("");
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncPat, setSyncPat] = useState(() => getStoredPat());
+  const [syncLog, setSyncLog] = useState<string[]>([]);
 
   // 持久化
   useEffect(() => {
     saveNotes(notes);
   }, [notes]);
 
-  // 自动同步（保存后）
+  // 自动同步（保存后，错误不弹窗避免影响笔记）
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
   useEffect(() => {
     const pat = getStoredPat();
-    const id = getGistId();
     if (!pat) return;
     (async () => {
       try {
-        await fullSync(
-          notes, pat, id,
+        const { notes: merged } = await fullSync(
+          notesRef.current, pat, getGistId(),
           (msg) => setSyncMsg(msg)
         );
+        // 内容确实变了才 setNotes，否则会因新数组引用触发无限同步
+        if (JSON.stringify(merged) !== JSON.stringify(notesRef.current)) {
+          setNotes(merged);
+        }
         setSyncStatus("success");
         setSyncMsg(formatLastSync(getLastSyncTime()));
       } catch (e: any) {
         setSyncStatus("error");
-        setSyncMsg(e.message || "同步失败");
+        setSyncMsg(e?.message || "同步失败");
       }
     })();
   }, [notes]);
 
-  const handleSync = async () => {
-    const pat = getStoredPat();
-    if (!pat) { setShowSyncSettings(true); return; }
+  const logSync = (line: string) => {
+    const ts = new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    setSyncLog((prev) => [`[${ts}] ${line}`, ...prev].slice(0, 6));
+  };
+
+  const runSync = async (pat: string): Promise<boolean> => {
     setSyncStatus("syncing");
+    setSyncError("");
     setSyncMsg("同步中…");
+    logSync("开始同步…");
     try {
       const { notes: merged, changed } = await fullSync(
-        notes, pat, getGistId(),
-        (msg) => setSyncMsg(msg)
+        notesRef.current, pat, getGistId(),
+        (msg) => { setSyncMsg(msg); logSync(msg); }
       );
-      setNotes(merged);
-      setSyncStatus(changed ? "success" : "success");
+      if (JSON.stringify(merged) !== JSON.stringify(notesRef.current)) {
+        setNotes(merged);
+      }
+      setSyncStatus("success");
       setSyncMsg(formatLastSync(getLastSyncTime()));
+      logSync(changed ? "✅ 已同步" : "✅ 已是最新（无变更）");
+      return true;
     } catch (e: any) {
+      const msg = e?.message || String(e);
       setSyncStatus("error");
-      setSyncMsg(e.message || "同步失败");
+      setSyncMsg(msg);
+      setSyncError(msg);
+      logSync(`❌ ${msg}`);
+      return false;
     }
   };
 
-  const handleSaveSyncSettings = () => {
-    if (syncPat.trim()) {
-      setStoredPat(syncPat.trim());
-      setShowSyncSettings(false);
-      // 立即触发一次同步
-      handleSync();
+  const handleSync = async () => {
+    const pat = getStoredPat();
+    if (!pat) { setShowSyncSettings(true); return; }
+    const ok = await runSync(pat);
+    // 失败时把设置弹窗打开，让用户看到具体错误（以前只藏在 tooltip 里）
+    if (!ok) setShowSyncSettings(true);
+  };
+
+  const handleTestPat = async () => {
+    const pat = syncPat.trim();
+    if (!pat) {
+      setSyncError("请先粘贴 Token");
+      return;
     }
+    setSyncStatus("syncing");
+    setSyncError("");
+    setSyncMsg("正在验证 Token…");
+    logSync("测试 Token…");
+    try {
+      const { testPat } = await import("./sync");
+      await testPat(pat);
+      setSyncStatus("success");
+      setSyncMsg("Token 有效");
+      logSync("✅ Token 验证通过");
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      setSyncStatus("error");
+      setSyncMsg(msg);
+      setSyncError(msg);
+      logSync(`❌ ${msg}`);
+    }
+  };
+
+  const handleSaveSyncSettings = async () => {
+    const pat = syncPat.trim();
+    if (!pat) {
+      setSyncError("请先粘贴 Token，不能为空");
+      logSync("⚠️ Token 为空");
+      return;
+    }
+    setStoredPat(pat);
+    logSync("Token 已保存");
+    const ok = await runSync(pat);
+    // 同步成功才关闭弹窗；失败保持打开，让用户看到错误
+    if (ok) setShowSyncSettings(false);
   };
 
   const handleClearSync = () => {
@@ -129,7 +187,9 @@ export default function App() {
     setSyncPat("");
     setSyncStatus("idle");
     setSyncMsg("");
+    setSyncError("");
     setShowSyncSettings(false);
+    logSync("已清除 Token 和 Gist 绑定");
   };
 
   // 窗口置顶（仅 Tauri）
@@ -314,7 +374,7 @@ export default function App() {
     if (m) setListMode(m);
   };
 
-  const headerBtnCls = "px-2 py-1 text-xs rounded bg-white text-gray-800 hover:bg-emerald-200 border border-emerald-200";
+  const headerBtnCls = "px-2 py-1 text-xs rounded bg-white text-gray-800 hover:bg-gray-200 border border-gray-300";
 
   return (
     <>
@@ -342,12 +402,12 @@ export default function App() {
             <button
               onClick={handleSync}
               className={`${headerBtnCls} ${
-                syncStatus === "syncing" ? "bg-blue-100 text-blue-700 animate-pulse" :
-                syncStatus === "success" && syncMsg ? "bg-emerald-100 text-emerald-700" :
-                syncStatus === "error" ? "bg-red-100 text-red-700" :
+                syncStatus === "syncing" ? "bg-blue-100 text-blue-700 border-blue-300 animate-pulse" :
+                syncStatus === "success" && syncMsg ? "bg-emerald-100 text-emerald-700 border-emerald-300" :
+                syncStatus === "error" ? "bg-red-100 text-red-700 border-red-300" :
                 ""
               }`}
-              title={syncMsg || "同步到云端"}
+              title={syncMsg || "同步到云端（首次使用需先点 ⚙️ 配置 Token）"}
             >
               {syncStatus === "syncing" ? "🔄" : syncStatus === "success" ? "✅" : syncStatus === "error" ? "⚠️" : "☁️"}
             </button>
@@ -731,7 +791,7 @@ export default function App() {
       {/* 同步设置弹窗 */}
       {showSyncSettings && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[100]">
-          <div className="bg-white rounded-xl shadow-2xl w-[300px] max-h-[80vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-[320px] max-h-[85vh] overflow-y-auto">
             <div className="bg-emerald-100 px-4 py-3 rounded-t-xl flex items-center justify-between">
               <span className="font-bold text-gray-800">☁️ 云端同步设置</span>
               <button onClick={() => setShowSyncSettings(false)} className="text-gray-500 hover:text-gray-800 text-lg">✕</button>
@@ -742,36 +802,49 @@ export default function App() {
                 <input
                   type="password"
                   value={syncPat}
-                  onChange={(e) => setSyncPat(e.target.value)}
+                  onChange={(e) => { setSyncPat(e.target.value); if (syncError) setSyncError(""); }}
                   placeholder="github_pat_xxxx…"
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  className={`w-full border rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                    syncError ? "border-red-400 focus:ring-red-300" : "border-gray-300 focus:ring-emerald-300"
+                  }`}
                 />
+                {syncError && (
+                  <div className="text-[11px] text-red-600 mt-1 bg-red-50 rounded px-2 py-1">
+                    ❌ {syncError}
+                  </div>
+                )}
                 <div className="text-[11px] text-gray-500 mt-1">
-                  需要 GitHub 账号。创建 Token：
-                  <span className="text-blue-600">Settings → Developer settings → Personal access tokens → Tokens (classic)</span>
-                  ，勾选 <b>gist</b> 权限。
+                  推荐用 <b>Fine-grained token</b>（仅勾选 Gists 读写权限）。
                 </div>
               </div>
               <div className="bg-blue-50 border border-blue-100 rounded p-2 text-[11px] text-blue-700">
-                📋 如何获取 Token：<br/>
-                1. github.com → 右上角头像 → Settings<br/>
-                2. 左侧 "Developer settings"<br/>
-                3. Personal access tokens → Tokens (classic)<br/>
-                4. Generate new token (classic)<br/>
-                5. 勾选 <b>gist</b> → Generate<br/>
-                6. 复制 Token 粘贴到上方
+                📋 <b>如何获取 Token</b>：<br/>
+                1. github.com → Settings → Developer settings<br/>
+                2. Personal access tokens → <b>Fine-grained tokens</b><br/>
+                3. Generate new token，资源选自己<br/>
+                4. Permissions 搜 "Gists" → <b>Read and write</b><br/>
+                5. Generate → 复制 Token 粘贴到上方
               </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveSyncSettings}
-                  className="flex-1 px-3 py-2 bg-emerald-500 text-white rounded font-bold hover:bg-emerald-600"
+                  disabled={syncStatus === "syncing"}
+                  className="flex-1 px-3 py-2 bg-emerald-500 text-white rounded font-bold hover:bg-emerald-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
-                  保存并同步
+                  {syncStatus === "syncing" ? "同步中…" : "保存并同步"}
+                </button>
+                <button
+                  onClick={handleTestPat}
+                  disabled={syncStatus === "syncing"}
+                  className="px-3 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-100 text-xs disabled:bg-gray-100 disabled:text-gray-400"
+                >
+                  仅测试 Token
                 </button>
                 {getStoredPat() && (
                   <button
                     onClick={handleClearSync}
                     className="px-3 py-2 border border-red-300 text-red-600 rounded hover:bg-red-50 text-xs"
+                    title="清除 Token 和 Gist 绑定"
                   >
                     清除
                   </button>
@@ -779,7 +852,15 @@ export default function App() {
               </div>
               {getStoredPat() && (
                 <div className="text-[11px] text-gray-500 text-center">
-                  已绑定 · 上次同步：{formatLastSync(getLastSyncTime())}
+                  已绑定 · 上次同步：<b>{formatLastSync(getLastSyncTime())}</b>
+                </div>
+              )}
+              {syncLog.length > 0 && (
+                <div className="bg-gray-50 border border-gray-200 rounded p-2 text-[10px] text-gray-700 font-mono max-h-32 overflow-y-auto">
+                  <div className="text-gray-500 mb-1 font-sans font-bold">同步日志：</div>
+                  {syncLog.map((line, i) => (
+                    <div key={i} className="leading-tight">{line}</div>
+                  ))}
                 </div>
               )}
             </div>

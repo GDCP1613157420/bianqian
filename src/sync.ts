@@ -25,20 +25,47 @@ export interface SyncConfig {
 
 // ---------- 公开 API ----------
 
+/** 仅验证 Token 是否有效 + Gist 权限是否够，不做读写 */
+export function testPat(pat: string): Promise<{ login: string; scopes: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("GET", "https://api.github.com/user", true);
+    xhr.setRequestHeader("Authorization", `Bearer ${pat}`);
+    xhr.setRequestHeader("Accept", "application/vnd.github+json");
+    xhr.setRequestHeader("X-GitHub-Api-Version", "2022-11-28");
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          const scopes = xhr.getResponseHeader("x-oauth-scopes") || "(fine-grained: 看 token 设置中的 Permissions)";
+          resolve({ login: data.login, scopes });
+        } catch {
+          reject(new Error("返回数据解析失败"));
+        }
+      } else {
+        let msg = `HTTP ${xhr.status}`;
+        try {
+          const j = JSON.parse(xhr.responseText);
+          msg = j.message || j.error || msg;
+        } catch {}
+        reject(new Error(msg));
+      }
+    };
+    xhr.onerror = () => reject(new Error("网络错误：请检查网络或代理"));
+    xhr.send();
+  });
+}
+
 /** 推送便签到 GitHub Gist */
 export async function pushToGist(notes: Note[], pat: string, gistId?: string): Promise<string> {
   const gistIdToUse = gistId || getGistId();
   const content = JSON.stringify(notes, null, 2);
 
   if (gistIdToUse) {
-    // 更新已有 Gist
-    const files = await getGistFiles(pat, gistIdToUse);
-    const fileSha = files[GIST_FILENAME]?.sha;
+    // 更新已有 Gist（GitHub 不需要 sha，直接传 content 覆盖即可）
     const body: Record<string, unknown> = {
       description: "桌面便签数据自动同步",
-      files: {
-        [GIST_FILENAME]: { content: content, ...(fileSha ? { sha: fileSha } : {}) },
-      },
+      files: { [GIST_FILENAME]: { content } },
     };
     const resp = await gistFetch(pat, `gists/${gistIdToUse}`, "PATCH", body);
     return (resp as any).id as string;
@@ -59,11 +86,23 @@ export async function pushToGist(notes: Note[], pat: string, gistId?: string): P
 /** 从 GitHub Gist 拉取便签（返回 Note[]，出错抛异常） */
 export async function pullFromGist(pat: string, gistId: string): Promise<Note[]> {
   const resp = await gistFetch(pat, `gists/${gistId}`, "GET", null);
-  const files = (resp as any).files as Record<string, { content: string; encoding: string }>;
+  const files = (resp as any).files as Record<
+    string,
+    { content: string; truncated?: boolean; raw_url?: string }
+  >;
   const file = files[GIST_FILENAME];
   if (!file) throw new Error("Gist 中未找到便签文件");
-  const text = decodeURIComponent(escape(atob(file.content)));
-  return JSON.parse(text) as Note[];
+  // 注意：Gist API 返回的 content 是明文，不是 base64（旧代码误用 atob 导致每次都拉取失败）
+  let text = file.content || "";
+  if (!text || file.truncated) {
+    throw new Error("便签文件过大，暂不支持同步");
+  }
+  try {
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? (parsed as Note[]) : [];
+  } catch {
+    throw new Error("远端便签数据格式损坏");
+  }
 }
 
 /** 完整同步：拉取 → 合并（以 updatedAt 更新的为准）→ 推送 */
@@ -76,38 +115,46 @@ export async function fullSync(
   onProgress?.("正在连接 GitHub…");
   let remoteNotes: Note[] = [];
   let currentGistId = gistId || getGistId();
+  const hadGistId = !!currentGistId;
 
   if (currentGistId) {
     try {
       remoteNotes = await pullFromGist(pat, currentGistId);
     } catch (e: any) {
-      // Gist 不存在或无法访问，当作空远程
-      if (e.message?.includes("Not Found") || e.message?.includes("404")) {
+      // Gist 不存在 / 还没建文件，都当作空远程
+      const m = e?.message || "";
+      if (m.includes("Not Found") || m.includes("404") || m.includes("未找到便签文件")) {
+        // Gist 已在远端被删除：清掉本地缓存 ID，否则下次会用旧 ID 去 PATCH 报 404
         currentGistId = "";
+        remoteNotes = [];
+        localStorage.removeItem(GIST_ID_KEY);
       } else {
-        throw new Error(`拉取失败：${e.message}`);
+        throw new Error(`拉取失败：${m}`);
       }
     }
   }
 
   // 合并：以 updatedAt 更新的为准
   const merged = mergeNotes(localNotes, remoteNotes);
-  const localChanged = merged.some((n) =>
-    remoteNotes.some((r) => r.id === n.id && r.updatedAt !== n.updatedAt)
-  );
-  const remoteChanged = merged.some((n) =>
-    localNotes.some((l) => l.id === n.id && l.updatedAt !== n.updatedAt)
-  );
-  const changed = localChanged || remoteChanged;
 
-  if (changed) {
+  // 用 id+updatedAt 指纹判断是否需要推送/拉取（顺序无关）
+  const sig = (arr: Note[]) =>
+    JSON.stringify(arr.map((n) => [n.id, n.updatedAt]).sort());
+  const mergedSig = sig(merged);
+  // 首次同步（没有 gistId / gist 被删）必须推送，否则永远建不出远程数据
+  const needPush = !currentGistId || mergedSig !== sig(remoteNotes);
+  const needPull = mergedSig !== sig(localNotes);
+
+  if (needPush) {
     onProgress?.("正在保存到 GitHub…");
     currentGistId = await pushToGist(merged, pat, currentGistId || undefined);
-    localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
   }
 
+  // 只要成功走完就算同步成功（不再依赖是否发生变更）
+  localStorage.setItem(LAST_SYNC_KEY, new Date().toISOString());
+
   onProgress?.("同步完成");
-  return { notes: merged, gistId: currentGistId, changed };
+  return { notes: merged, gistId: currentGistId, changed: needPush || needPull || !hadGistId };
 }
 
 // ---------- helpers ----------
@@ -148,15 +195,6 @@ function gistFetch(pat: string, path: string, method: string, body: unknown): Pr
     xhr.onerror = () => reject(new Error("网络错误，请检查网络连接"));
     xhr.send(body ? JSON.stringify(body) : undefined);
   });
-}
-
-async function getGistFiles(pat: string, gistId: string): Promise<Record<string, { sha?: string }>> {
-  try {
-    const resp = await gistFetch(pat, `gists/${gistId}`, "GET", null);
-    return ((resp as any).files || {}) as Record<string, { sha?: string }>;
-  } catch {
-    return {};
-  }
 }
 
 // ---------- localStorage 读写 ----------

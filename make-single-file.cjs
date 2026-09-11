@@ -61,10 +61,14 @@ out = out.replace(/<\/body>/i, () => `<script>\n${safeJs}\n</script>\n</body>`);
 fs.writeFileSync(outPath, out, "utf-8");
 
 // 校验
+// 注：JS bundle 内部可能包含字符串 "<script>"（如 React 的 innerHTML 检测），
+// 它被转义为 <\/script> 不会提前闭合，属正常现象。
+// 因此这里先把内联脚本正文剔除，再统计真实的 HTML 层标签数。
+const structural = out.replace(safeJs, "/*__JS__*/");
 const hasExternal = /src=["']\.\/assets|href=["']\.\/assets/.test(out);
-const scriptTags = (out.match(/<script/g) || []).length;
-const styleTags = (out.match(/<style/g) || []).length;
-const closeScript = (out.match(/<\/script>/g) || []).length;
+const scriptTags = (structural.match(/<script/g) || []).length;
+const styleTags = (structural.match(/<style/g) || []).length;
+const closeScript = (structural.match(/<\/script>/g) || []).length;
 const rootIdx = out.toLowerCase().indexOf('<div id="root"');
 const scriptIdx = out.toLowerCase().lastIndexOf("<script>");
 const orderOk = rootIdx !== -1 && scriptIdx !== -1 && scriptIdx > rootIdx;
