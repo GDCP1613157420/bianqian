@@ -1,5 +1,14 @@
 // Tauri 环境检测与兼容封装
-// 在浏览器中预览时（无 Tauri 运行时），窗口 API 自动降级为空操作
+// 浏览器预览时（无 Tauri 运行时），窗口 API 自动降级为空操作。
+//
+// ⚠️ 重要：这里用【静态 import】而不是动态 import(/* @vite-ignore */ ...)。
+// 原因：打包 exe 用的 vite.config.ts 之前把这几个 Tauri 模块 alias 成了浏览器桩(stub)，
+// 而动态 import 加 @vite-ignore 又绕过了 alias，导致 exe 里原生能力(置顶/最小化/打开文件/通知)
+// 全部变成 no-op——这正是"PC 端功能全丢"的根因。
+// 现在统一静态 import，由各自的构建配置决定最终解析成真模块(exe)还是桩(web)。
+import { getCurrentWindow } from "@tauri-apps/api/window";
+import { openPath, openUrl, revealItemInDir } from "@tauri-apps/plugin-opener";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 
 export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -12,11 +21,10 @@ export interface PreviewWindow {
 }
 
 // 返回 null 表示浏览器预览模式
-export async function getAppWindow(): Promise<PreviewWindow | null> {
+export function getAppWindow(): PreviewWindow | null {
   if (!isTauri()) return null;
   try {
-    const mod = await import(/* @vite-ignore */ "@tauri-apps/api/window");
-    return (mod as any).getCurrentWindow() as unknown as PreviewWindow;
+    return getCurrentWindow() as unknown as PreviewWindow;
   } catch {
     return null;
   }
@@ -37,32 +45,29 @@ export async function openExternal(
   if (!path) return false;
   if (isTauri()) {
     try {
-      // @ts-ignore - dynamic import in Tauri context
-      const mod = await import("@tauri-apps/plugin-opener");
-      const opener = mod as any;
       if (kind === "url") {
         const url = /^https?:\/\//i.test(path) ? path : `https://${path}`;
-        await opener.openUrl(url);
+        await openUrl(url);
       } else if (kind === "folder") {
         // 打开文件夹：优先 openPath，失败再退化为 revealItemInDir（在文件管理器选中该文件夹）
         try {
-          await opener.openPath(path);
+          await openPath(path);
         } catch (e1) {
           try {
-            await opener.revealItemInDir(path);
-          } catch (e2) {
+            await revealItemInDir(path);
+          } catch {
             throw e1;
           }
         }
       } else {
-        await opener.openPath(path);
+        await openPath(path);
       }
       return true;
     } catch (e: any) {
       console.error("[openExternal tauri]", e);
       const msg = e?.message || String(e) || "未知错误";
       alert(
-        `【打开失败】\n类型：${kind === "folder" ? "文件夹" : kind === "url" ? "网址" : "文件"}\n路径：${path}\n错误：${msg}\n\n请检查：\n1. 文件/文件夹是否存在\n2. 路径是否完整（需含盘符，如 C:\\Users\\xxx）\n3. 路径中是否含特殊字符需要转义`
+        `【打开失败】\n类型：${kind === "folder" ? "文件夹" : kind === "url" ? "网址" : "文件"}\n路径：${path}\n错误：${msg}\n\n请检查：\n1. 文件/文件夹是否存在\n2. 路径是否完整（Windows 需含盘符，如 C:\\Users\\xxx）\n3. 路径中是否含特殊字符需要转义`
       );
       return false;
     }
@@ -93,26 +98,19 @@ export async function pickLocalPath(
     return null;
   }
   try {
-    // @ts-ignore - dynamic import in Tauri context
-    const mod = await import("@tauri-apps/plugin-dialog");
-    const dlg = mod as any;
-    if (kind === "folder") {
-      const p = await dlg.open({ directory: true, multiple: false });
-      return Array.isArray(p) ? (p[0] || null) : (p || null);
-    }
     if (kind === "url") {
       // URL 用 prompt 即可
       const p = window.prompt("请输入 URL（http:// 或 https:// 开头）：", "https://");
       return p && p.trim() ? p.trim() : null;
     }
-    const p = await dlg.open({
-      directory: false,
+    const p = await openDialog({
+      directory: kind === "folder",
       multiple: false,
-      filters: [
-        { name: "所有文件", extensions: ["*"] },
-      ],
+      ...(kind === "folder"
+        ? {}
+        : { filters: [{ name: "所有文件", extensions: ["*"] }] }),
     });
-    return Array.isArray(p) ? (p[0] || null) : (p || null);
+    return Array.isArray(p) ? p[0] || null : p || null;
   } catch (e: any) {
     console.error("[pickLocalPath]", e);
     const msg = e?.message || String(e) || "未知错误";
