@@ -130,13 +130,13 @@ export default function NoteCard({
         </button>
         <div className="flex-1 min-w-0">
           <div
-            className="text-sm font-medium text-gray-700 line-through cursor-pointer hover:underline"
+            className="text-base font-medium text-gray-700 line-through cursor-pointer hover:underline"
             onClick={() => onSelect(note.id)}
           >
             {title}
           </div>
           {body && (
-            <div className="text-xs text-gray-500 line-clamp-2 mt-0.5">{body}</div>
+            <div className="text-sm text-gray-500 line-clamp-2 mt-0.5">{body}</div>
           )}
         </div>
         <button
@@ -154,7 +154,7 @@ export default function NoteCard({
     return (
       <div className="p-2 rounded-lg bg-white border border-emerald-200 flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-gray-500 line-through truncate">
+          <div className="text-base font-medium text-gray-500 line-through truncate">
             {title}
           </div>
         </div>
@@ -181,7 +181,7 @@ export default function NoteCard({
       {/* 滑动时的红色删除背景 */}
       {swipeX !== 0 && (
         <div
-          className="absolute inset-0 bg-red-400 rounded-lg flex items-center justify-end pr-4 text-white text-sm font-bold"
+          className="absolute inset-0 bg-red-400 rounded-lg flex items-center justify-end pr-4 text-white text-base font-bold"
           style={{ opacity: Math.min(Math.abs(swipeX) / SWIPE_THRESHOLD, 1) }}
         >
           左滑删除 →
@@ -212,14 +212,14 @@ export default function NoteCard({
           />
           <div className="flex-1 min-w-0">
             <div
-              className="text-sm font-bold text-gray-800 cursor-pointer hover:underline"
+              className="text-base font-bold text-gray-800 cursor-pointer hover:underline"
               onClick={() => onSelect(note.id)}
             >
               {title}
             </div>
             {body && (
               <div
-                className="text-xs text-gray-600 line-clamp-2 mt-0.5 cursor-pointer"
+                className="text-sm text-gray-600 line-clamp-2 mt-0.5 cursor-pointer"
                 onClick={() => onSelect(note.id)}
               >
                 {body}
@@ -281,7 +281,7 @@ export default function NoteCard({
       {/* 滑动删除确认弹层 */}
       {confirming && (
         <div className="absolute inset-0 bg-red-500 rounded-lg flex items-center justify-between px-3 z-10">
-          <div className="text-white text-sm font-bold">确认删除？</div>
+          <div className="text-white text-base font-bold">确认删除？</div>
           <div className="flex gap-2">
             <button
               onClick={handleUndo}
