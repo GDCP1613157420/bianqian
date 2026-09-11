@@ -306,6 +306,27 @@ export default function DetailPanel({
           </div>
         </div>
 
+        {/* 创建时间（可编辑，需求3） */}
+        <div>
+          <label className="text-xs text-gray-600 font-bold block mb-1">🕒 创建时间</label>
+          {editing ? (
+            <input
+              type="datetime-local"
+              value={draft.createdAt ? isoToLocalInput(draft.createdAt) : ""}
+              onChange={(e) => {
+                const iso = e.target.value ? localInputToIso(e.target.value) : "";
+                if (iso) setDraft({ ...draft, createdAt: iso });
+              }}
+              className="w-full text-sm rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
+            />
+          ) : (
+            <div className="text-sm text-gray-800">
+              {new Date(draft.createdAt).toLocaleString("zh-CN", { hour12: false })}
+            </div>
+          )}
+          <div className="text-xs text-gray-500 mt-0.5">💡 可修改创建时间，把便签归到指定日期</div>
+        </div>
+
         {/* 时间段（工作计划时间点或时间段） */}
         <div>
           <label className="text-xs text-gray-600 font-bold block mb-1">
