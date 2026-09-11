@@ -24,18 +24,26 @@ const jsCode = fs.readFileSync(path.join(distDir, jsRel), "utf-8");
 const cssCode = cssRel ? fs.readFileSync(path.join(distDir, cssRel), "utf-8") : "";
 
 // 转义：避免内容中的 </script> 或 </style> 提前闭合标签
-const safeJs = jsCode.replace(/<\/script>/gi, "<\\/script>");
-const safeCss = cssCode.replace(/<\/style>/gi, "<\\/style>");
+// 必须用【函数 replacer】！bundle 内含 $& / $` / $' 等会被 String.replace 当成替换模式，
+// 若用字符串替换会把替换串里的 $ 序列解释掉，造成内容损坏。
+const safeJs = jsCode.replace(/<\/script>/gi, () => "<\\/script>");
+const safeCss = cssCode.replace(/<\/style>/gi, () => "<\\/style>");
 
-// 用内联脚本替换外链 script 标签（iife 产物，作为普通 script 即可，避免 module 的 file:// CORS 限制）
-// 必须用【函数 replacer】！bundle 内含 $& / $\` / $' 等会被 String.replace 当成替换模式，
-// 若用字符串替换会把原 <script src> 标签（含 </script>）又注入回内联脚本，导致脚本提前闭合白屏。
-let out = html.replace(
+// ⚠️ 关键修复：内联后的脚本【绝不能】留在 <head>！
+// Vite 原始产物是 <script type="module">（浏览器自动 defer，DOM 解析完才执行）；
+// 内联后变成普通 <script>，会【立即同步执行】，此时 <div id="root"> 还不存在，
+// createRoot(null) 抛 React #299，页面全白。
+// 所以：① 从 <head> 摘掉外链 script；② CSS 留在 head；③ bundle 插到 </body> 之前。
+
+let out = html;
+
+// 1) 从 <head> 移除外链 script 标签
+out = out.replace(
   /<script[^>]*src=["'][^"']+\.js["'][^>]*>\s*<\/script>/,
-  () => `<script>\n${safeJs}\n</script>`
+  () => ""
 );
 
-// 用内联 style 替换外链 css link（同样用函数 replacer，避免 $ 被解释）
+// 2) 用内联 style 替换外链 css link（CSS 在 head 是正确的）
 if (cssRel) {
   out = out.replace(
     /<link[^>]*href=["'][^"']+\.css["'][^>]*>/,
@@ -43,13 +51,29 @@ if (cssRel) {
   );
 }
 
+// 3) 把 bundle 注入到 </body> 之前（保证 DOM 就绪后再执行）
+if (!/<\/body>/i.test(out)) {
+  console.error("未找到 </body>，无法注入脚本");
+  process.exit(1);
+}
+out = out.replace(/<\/body>/i, () => `<script>\n${safeJs}\n</script>\n</body>`);
+
 fs.writeFileSync(outPath, out, "utf-8");
 
-// 校验：不应再有外链资源
+// 校验
 const hasExternal = /src=["']\.\/assets|href=["']\.\/assets/.test(out);
 const scriptTags = (out.match(/<script/g) || []).length;
 const styleTags = (out.match(/<style/g) || []).length;
+const closeScript = (out.match(/<\/script>/g) || []).length;
+const rootIdx = out.toLowerCase().indexOf('<div id="root"');
+const scriptIdx = out.toLowerCase().lastIndexOf("<script>");
+const orderOk = rootIdx !== -1 && scriptIdx !== -1 && scriptIdx > rootIdx;
 console.log(`✅ 生成 ${outPath}`);
 console.log(`   JS: ${jsRel} (${jsCode.length} bytes)`);
 console.log(`   CSS: ${cssRel || "(无)"} (${cssCode.length} bytes)`);
-console.log(`   script标签: ${scriptTags}, style标签: ${styleTags}, 仍有外链: ${hasExternal ? "是(异常!)" : "否"}`);
+console.log(`   script标签: ${scriptTags}, </script>: ${closeScript}, style标签: ${styleTags}`);
+console.log(`   仍有外链: ${hasExternal ? "是(异常!)" : "否"}`);
+console.log(`   脚本在 root 之后: ${orderOk ? "是 ✅" : "否 ❌(会白屏)"}`);
+if (scriptTags !== closeScript) {
+  console.log(`   ⚠️ script 开闭标签数量不匹配 (${scriptTags} vs ${closeScript})`);
+}
