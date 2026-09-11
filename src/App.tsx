@@ -11,6 +11,7 @@ import {
   describeRecurrence,
 } from "./utils";
 import { isTauri, getAppWindow } from "./tauri";
+import { sendNotification } from "@tauri-apps/plugin-notification";
 import {
   fullSync,
   getStoredPat,
@@ -156,8 +157,11 @@ export default function App() {
   const fireNotification = async (n: Note) => {
     const title = n.title || n.content?.split("\n")[0] || "便签提醒";
     if (isTauri()) {
-      const mod = await import(/* @vite-ignore */ "@tauri-apps/plugin-notification");
-      (mod as any).sendNotification({ title, body: n.body || "" });
+      try {
+        sendNotification({ title, body: n.body || "" });
+      } catch (e) {
+        console.error("[notification]", e);
+      }
     } else if ("Notification" in window) {
       if (Notification.permission === "granted") {
         new Notification(title, { body: n.body || "" });
@@ -345,6 +349,13 @@ export default function App() {
               title="回收站"
             >
               🗑
+            </button>
+            <button
+              onClick={() => gotoView("list", "tree")}
+              className={`${headerBtnCls} ${view === "list" && listMode === "tree" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="分组归档视图（按上下级展示）"
+            >
+              🗂
             </button>
           </div>
           <div className="flex items-center gap-0.5">
