@@ -23,7 +23,6 @@ const COLOR_OPTIONS: { value: NonNullable<Note["color"]>; label: string; bg: str
 
 interface Props {
   note: Note | null;
-  isStandalone?: boolean; // 是否独立窗口模式
   onClose: () => void;
   onUpdate: (note: Note) => void;
   onMarkDone: (id: string) => void;
@@ -32,7 +31,6 @@ interface Props {
 
 export default function DetailPanel({
   note,
-  isStandalone = false,
   onClose,
   onUpdate,
   onMarkDone,
@@ -56,7 +54,7 @@ export default function DetailPanel({
     // 占位空态
     return (
       <div
-        className={`${isStandalone ? "" : "detail-panel-overlay"} h-full bg-white flex flex-col items-center justify-center text-gray-500 text-sm p-4`}
+        className="h-full bg-white flex flex-col items-center justify-center text-gray-500 text-sm p-4"
       >
         <div className="text-3xl mb-2">📝</div>
         <div>点击左侧便签查看详情</div>
@@ -176,7 +174,7 @@ export default function DetailPanel({
 
   return (
     <div
-      className={`${isStandalone ? "" : "detail-panel-overlay"} h-full bg-white flex flex-col`}
+      className="h-full bg-white flex flex-col"
     >
       {/* 顶栏 */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-emerald-200 bg-white">
@@ -260,31 +258,31 @@ export default function DetailPanel({
 
         {/* 标题 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">标题</label>
+          <label className="text-xs text-gray-600 font-bold block mb-1">标题</label>
           {editing ? (
             <input
               value={draft.title}
               onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-              className="w-full text-base font-bold text-gray-900 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400"
+              className="w-full text-lg font-bold text-gray-900 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400"
               placeholder="便签标题"
             />
           ) : (
-            <div className="text-base font-bold text-gray-900">{title}</div>
+            <div className="text-lg font-bold text-gray-900">{title}</div>
           )}
         </div>
 
         {/* 详情 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">详情</label>
+          <label className="text-xs text-gray-600 font-bold block mb-1">详情</label>
           {editing ? (
             <textarea
               value={draft.body}
               onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-              className="w-full min-h-[80px] text-sm text-gray-800 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400 resize-none"
+              className="w-full min-h-[80px] text-base text-gray-800 bg-white rounded border border-emerald-200 px-2 py-1.5 focus:outline-none focus:border-stone-400 resize-none"
               placeholder="详细内容..."
             />
           ) : (
-            <div className="text-sm text-gray-800 whitespace-pre-wrap min-h-[40px]">
+            <div className="text-base text-gray-800 whitespace-pre-wrap min-h-[40px]">
               {body || <span className="text-gray-500">（无详情）</span>}
             </div>
           )}
@@ -292,7 +290,7 @@ export default function DetailPanel({
 
         {/* 颜色 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">颜色</label>
+          <label className="text-xs text-gray-600 font-bold block mb-1">颜色</label>
           <div className="flex gap-1.5">
             {COLOR_OPTIONS.map((c) => (
               <button
@@ -310,13 +308,13 @@ export default function DetailPanel({
 
         {/* 时间段（工作计划时间点或时间段） */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">
+          <label className="text-xs text-gray-600 font-bold block mb-1">
             📅 工作时间段
           </label>
           {editing ? (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-gray-600 w-12 shrink-0">开始</span>
+                <span className="text-xs text-gray-600 w-12 shrink-0">开始</span>
                 <input
                   type="datetime-local"
                   value={draft.scheduledStart ? isoToLocalInput(draft.scheduledStart) : ""}
@@ -324,11 +322,11 @@ export default function DetailPanel({
                     const iso = e.target.value ? localInputToIso(e.target.value) : "";
                     setSchedule(iso, draft.scheduledEnd);
                   }}
-                  className="flex-1 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
+                  className="flex-1 text-sm rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
               </div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-gray-600 w-12 shrink-0">结束</span>
+                <span className="text-xs text-gray-600 w-12 shrink-0">结束</span>
                 <input
                   type="datetime-local"
                   value={draft.scheduledEnd ? isoToLocalInput(draft.scheduledEnd) : ""}
@@ -336,10 +334,10 @@ export default function DetailPanel({
                     const iso = e.target.value ? localInputToIso(e.target.value) : "";
                     setSchedule(draft.scheduledStart || "", iso);
                   }}
-                  className="flex-1 text-xs rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
+                  className="flex-1 text-sm rounded border border-emerald-200 px-1.5 py-1 bg-white text-gray-800"
                 />
               </div>
-              <div className="text-[10px] text-gray-500">
+              <div className="text-xs text-gray-500">
                 💡 可设置未来某个时间点（仅开始）或时间段（开始+结束）
               </div>
               {hasSchedule && (
@@ -379,7 +377,7 @@ export default function DetailPanel({
 
         {/* 提醒 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">
+          <label className="text-xs text-gray-600 font-bold block mb-1">
             ⏰ 提醒
           </label>
           {editing ? (
@@ -423,7 +421,7 @@ export default function DetailPanel({
 
         {/* 周期 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">
+          <label className="text-xs text-gray-600 font-bold block mb-1">
             🔁 长期任务
           </label>
           {editing ? (
@@ -456,7 +454,7 @@ export default function DetailPanel({
 
         {/* 文件链接 */}
         <div>
-          <label className="text-[11px] text-gray-600 font-bold block mb-1">
+          <label className="text-xs text-gray-600 font-bold block mb-1">
             📎 关联文件（点击打开）
           </label>
           <div className="space-y-1">
@@ -465,12 +463,12 @@ export default function DetailPanel({
                 key={link.id}
                 className="flex items-center gap-1.5 bg-white border border-emerald-200 rounded px-2 py-1"
               >
-                <span className="text-sm">
+                <span className="text-base">
                   {link.kind === "folder" ? "📁" : link.kind === "url" ? "🔗" : "📄"}
                 </span>
                 <button
                   onClick={() => handleOpenFile(link)}
-                  className="flex-1 min-w-0 text-left text-xs text-gray-800 hover:underline truncate"
+                  className="flex-1 min-w-0 text-left text-sm text-gray-800 hover:underline truncate"
                   title={link.path}
                 >
                   <span className="font-medium">{link.label}</span>
@@ -544,7 +542,7 @@ export default function DetailPanel({
                 style={{ display: "none" }}
                 onChange={handleFileSelected}
               />
-              <div className="text-[10px] text-gray-500">
+              <div className="text-xs text-gray-500">
                 💡 浏览器预览下"选择文件"只能取文件名；打包后可直接打开本地文件/文件夹
               </div>
             </div>
