@@ -295,52 +295,59 @@ export default function App() {
     if (w) await w.minimize();
   };
 
+  // 切换视图时顺手关闭详情面板（避免详情覆盖顶栏导致菜单点不了）
+  const gotoView = (v: View, m?: ListMode) => {
+    setSelectedNoteId(null);
+    setView(v);
+    if (m) setListMode(m);
+  };
+
   const headerBtnCls = "px-2 py-1 text-xs rounded bg-white text-gray-800 hover:bg-emerald-200 border border-emerald-200";
 
   return (
     <>
       {/* 主窗口 */}
       <div className="h-screen w-full bg-white flex flex-col text-gray-900 text-sm">
-        {/* 顶栏 - 可拖动窗口区域 */}
-        <div className="flex items-center justify-between px-2 py-1.5 bg-emerald-100 border-b border-emerald-200" data-tauri-drag-region>
-          <div className="flex items-center gap-1">
+        {/* 顶栏 - 可拖动窗口区域，始终可见可点击 */}
+        <div className="flex items-center justify-between px-2 py-1 bg-gradient-to-r from-emerald-200 to-emerald-100 border-b border-emerald-300" data-tauri-drag-region style={{ zIndex: 10 }}>
+          <div className="flex items-center gap-0.5">
             <button
-              onClick={() => { setView("list"); setListMode("all"); }}
-              className={`${headerBtnCls} ${view === "list" && listMode === "all" ? "bg-emerald-200 font-bold" : ""}`}
-             title="全部"
+              onClick={() => gotoView("list", "all")}
+              className={`${headerBtnCls} ${view === "list" && listMode === "all" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="全部便签"
             >
               📋
             </button>
             <button
-              onClick={() => { setView("list"); setListMode("today"); }}
-              className={`${headerBtnCls} ${view === "list" && listMode === "today" ? "bg-emerald-200 font-bold" : ""}`}
-             title="今天"
+              onClick={() => gotoView("list", "today")}
+              className={`${headerBtnCls} ${view === "list" && listMode === "today" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="今天的便签"
             >
               ⭐
             </button>
             <button
-              onClick={() => setListMode("scheduled")}
-              className={`${headerBtnCls} ${listMode === "scheduled" ? "bg-emerald-200 font-bold" : ""}`}
-             title="计划"
+              onClick={() => gotoView("list", "scheduled")}
+              className={`${headerBtnCls} ${listMode === "scheduled" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="计划任务"
             >
               📅
             </button>
             <button
-              onClick={() => setView("calendar")}
-              className={`${headerBtnCls} ${view === "calendar" ? "bg-emerald-200 font-bold" : ""}`}
-             title="日历"
+              onClick={() => gotoView("calendar")}
+              className={`${headerBtnCls} ${view === "calendar" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="日历视图"
             >
               🗓
             </button>
             <button
-              onClick={() => setView("trash")}
-              className={`${headerBtnCls} ${view === "trash" ? "bg-emerald-200 font-bold" : ""}`}
-             title="回收"
+              onClick={() => gotoView("trash")}
+              className={`${headerBtnCls} ${view === "trash" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
+              title="回收站"
             >
               🗑
             </button>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5">
             <button
               onClick={toggleAlwaysOnTop}
               className={`${headerBtnCls} ${isAlwaysOnTop ? "bg-amber-200 text-amber-800" : ""}`}
@@ -367,8 +374,19 @@ export default function App() {
           </div>
         </div>
 
-        {/* 主体 */}
-        <div className="flex-1 overflow-y-auto p-2">
+        {selectedNote ? (
+          <div className="flex-1 min-h-0">
+            <DetailPanel
+              note={selectedNote}
+              onClose={() => setSelectedNoteId(null)}
+              onUpdate={updateNote}
+              onMarkDone={(id) => { markDone(id); setSelectedNoteId(null); }}
+              onDelete={(id) => { softDelete(id); setSelectedNoteId(null); }}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="flex-1 overflow-y-auto p-2">
           {view === "list" && listMode === "tree" && (
             <HierarchicalList
               hierarchy={hierarchy}
@@ -626,20 +644,10 @@ export default function App() {
             </div>
           )}
         </div>
-      </div>
+          </>
+        )}
 
-      {/* 详情面板：内嵌浮层（exe 和浏览器统一渲染） */}
-      {selectedNote && (
-        <div className="detail-panel-overlay">
-          <DetailPanel
-            note={selectedNote}
-            onClose={() => setSelectedNoteId(null)}
-            onUpdate={updateNote}
-            onMarkDone={(id) => { markDone(id); setSelectedNoteId(null); }}
-            onDelete={(id) => { softDelete(id); setSelectedNoteId(null); }}
-          />
-        </div>
-      )}
+      </div>
 
       {/* 同步设置弹窗 */}
       {showSyncSettings && (
