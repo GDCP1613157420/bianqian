@@ -3,6 +3,11 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
+  // 关键：显式定义 NODE_ENV=production，否则 @vitejs/plugin-react 会打包开发版 React
+  // （开发版含描述组件栈的 <script> 字面量，内联到单文件 HTML 会把脚本提前截断）
+  define: {
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   plugins: [react()],
   resolve: {
     alias: [
