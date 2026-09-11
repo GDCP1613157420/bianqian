@@ -67,3 +67,72 @@ input, textarea, select {
 input:focus, textarea:focus, select:focus { outline: none; }
 input[type=number]::-webkit-inner-spin-button,
 input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* 移动端刘海/灵动岛安全区 */
+.app-topbar {
+  padding-top: max(4px, env(safe-area-inset-top));
+}
+.app-bottomtab {
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+.app-body-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 底部 Tab 栏 */
+.bottom-tabbar {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: #ffffff;
+  border-top: 1px solid #d1e7d4;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+.bottom-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 6px 2px 4px;
+  font-size: 11px;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  gap: 2px;
+}
+.bottom-tab:active { background: #f0f7f0; }
+.bottom-tab.active { color: #2d7a3a; font-weight: 700; }
+.bottom-tab .tab-icon { font-size: 20px; line-height: 1; }
+
+/* 悬浮新建按钮（FAB） */
+.fab-add {
+  position: fixed;
+  right: 16px;
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #2d7a3a;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border: none;
+  cursor: pointer;
+  z-index: 50;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s;
+}
+.fab-add:active { transform: scale(0.92); }
+
+/* 列表底部留白，避免被 FAB 挡住最后一条 */
+.content-area { padding-bottom: 80px; }

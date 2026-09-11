@@ -10,7 +10,7 @@ import {
   formatReminderLabel,
   describeRecurrence,
 } from "./utils";
-import { isTauri, getAppWindow } from "./tauri";
+import { isTauri, getAppWindow, isCapacitorApp, isMobileWidth } from "./tauri";
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import {
   fullSync,
@@ -37,6 +37,14 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>(() => loadNotes());
   const [view, setView] = useState<View>("list");
   const [listMode, setListMode] = useState<ListMode>("all");
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const update = () => setIsMobile(isMobileWidth() || isCapacitorApp());
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
   const [selectedDate, setSelectedDate] = useState<string>(todayStr());
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [isAlwaysOnTop, setIsAlwaysOnTop] = useState(false);
@@ -312,51 +320,15 @@ export default function App() {
     <>
       {/* 主窗口 */}
       <div className="h-screen w-full bg-white flex flex-col text-gray-900 text-sm">
-        {/* 顶栏 - 可拖动窗口区域，始终可见可点击 */}
-        <div className="flex items-center justify-between px-2 py-1 bg-gradient-to-r from-emerald-200 to-emerald-100 border-b border-emerald-300" data-tauri-drag-region style={{ zIndex: 10 }}>
-          <div className="flex items-center gap-0.5">
-            <button
-              onClick={() => gotoView("list", "all")}
-              className={`${headerBtnCls} ${view === "list" && listMode === "all" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="全部便签"
-            >
-              📋
-            </button>
-            <button
-              onClick={() => gotoView("list", "today")}
-              className={`${headerBtnCls} ${view === "list" && listMode === "today" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="今天的便签"
-            >
-              ⭐
-            </button>
-            <button
-              onClick={() => gotoView("list", "scheduled")}
-              className={`${headerBtnCls} ${listMode === "scheduled" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="计划任务"
-            >
-              📅
-            </button>
-            <button
-              onClick={() => gotoView("calendar")}
-              className={`${headerBtnCls} ${view === "calendar" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="日历视图"
-            >
-              🗓
-            </button>
-            <button
-              onClick={() => gotoView("trash")}
-              className={`${headerBtnCls} ${view === "trash" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="回收站"
-            >
-              🗑
-            </button>
-            <button
-              onClick={() => gotoView("list", "tree")}
-              className={`${headerBtnCls} ${view === "list" && listMode === "tree" && !selectedNote ? "bg-emerald-300 font-bold" : ""}`}
-              title="分组归档视图（按上下级展示）"
-            >
-              🗂
-            </button>
+        {/* 顶栏 - 精简版：刘海安全区 + 仅动作按钮 */}
+        <div
+          className="app-topbar flex items-center justify-between px-2 py-1 bg-gradient-to-r from-emerald-200 to-emerald-100 border-b border-emerald-300 app-body-x"
+          data-tauri-drag-region
+          style={{ zIndex: 10 }}
+        >
+          <div className="flex items-center gap-1.5 pl-1 pointer-events-none">
+            <span className="text-base">📝</span>
+            <span className="text-sm font-bold text-emerald-900">桌面便签</span>
           </div>
           <div className="flex items-center gap-0.5">
             <button
@@ -380,8 +352,12 @@ export default function App() {
               {syncStatus === "syncing" ? "🔄" : syncStatus === "success" ? "✅" : syncStatus === "error" ? "⚠️" : "☁️"}
             </button>
             <button onClick={() => setShowSyncSettings(true)} className={headerBtnCls} title="同步设置">⚙️</button>
-            <button onClick={handleMinimize} className={headerBtnCls} title="最小化">─</button>
-            <button onClick={handleClose} className={headerBtnCls} title="关闭到托盘">✕</button>
+            {!isMobile && (
+              <>
+                <button onClick={handleMinimize} className={headerBtnCls} title="最小化">─</button>
+                <button onClick={handleClose} className={headerBtnCls} title="关闭到托盘">✕</button>
+              </>
+            )}
           </div>
         </div>
 
@@ -397,7 +373,7 @@ export default function App() {
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="content-area flex-1 overflow-y-auto p-2">
           {view === "list" && listMode === "tree" && (
             <HierarchicalList
               hierarchy={hierarchy}
@@ -510,124 +486,89 @@ export default function App() {
           )}
         </div>
 
-        {/* 底部新建按钮 */}
-        <div className="p-2 border-t border-emerald-200 bg-emerald-50">
-          {!adding ? (
-            <button
-              onClick={() => setAdding(true)}
-              className="w-full py-2 rounded-lg bg-stone-700 text-white font-bold hover:bg-stone-800"
+        {/* 底部 Tab 栏（5 个主视图 + 归档入口） */}
+        <div className="bottom-tabbar app-bottomtab app-body-x">
+          <button
+            onClick={() => gotoView("list", "all")}
+            className={`bottom-tab ${view === "list" && listMode === "all" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">📋</span>
+            <span>列表</span>
+          </button>
+          <button
+            onClick={() => gotoView("list", "today")}
+            className={`bottom-tab ${view === "list" && listMode === "today" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">⭐</span>
+            <span>今天</span>
+          </button>
+          <button
+            onClick={() => gotoView("list", "scheduled")}
+            className={`bottom-tab ${view === "list" && listMode === "scheduled" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">🗓</span>
+            <span>计划</span>
+          </button>
+          <button
+            onClick={() => gotoView("calendar")}
+            className={`bottom-tab ${view === "calendar" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">📅</span>
+            <span>日历</span>
+          </button>
+          <button
+            onClick={() => gotoView("trash")}
+            className={`bottom-tab ${view === "trash" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">🗑</span>
+            <span>回收站</span>
+          </button>
+          <button
+            onClick={() => gotoView("list", "tree")}
+            className={`bottom-tab ${view === "list" && listMode === "tree" && !selectedNote ? "active" : ""}`}
+          >
+            <span className="tab-icon">🗂</span>
+            <span>归档</span>
+          </button>
+        </div>
+
+        {/* 悬浮新建按钮（FAB） */}
+        {!selectedNote && (
+          <button
+            className="fab-add"
+            onClick={() => setAdding(true)}
+            title="新建便签"
+            aria-label="新建便签"
+          >
+            ＋
+          </button>
+        )}
+
+        {/* 新建便签底部表单（弹起式） */}
+        {adding && (
+          <div
+            className="fixed inset-0 z-[60] flex items-end justify-center bg-black/30"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setAdding(false);
+                setNewTitle("");
+                setNewBody("");
+                setAddReminder("");
+                setAddRecurrence(undefined);
+                setAddStart("");
+                setAddEnd("");
+                setAddShowReminder(false);
+                setAddShowRecurrence(false);
+                setAddShowSchedule(false);
+              }
+            }}
+          >
+            <div
+              className="w-full max-w-[480px] bg-white rounded-t-2xl shadow-2xl app-bottomtab overflow-y-auto"
+              style={{ maxHeight: "85vh" }}
             >
-              + 新建便签
-            </button>
-          ) : (
-            <div className="space-y-1.5 bg-white border border-emerald-200 rounded-lg p-2">
-              <input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="标题（必填或填详情）"
-                className="w-full text-sm font-bold px-2 py-1.5 rounded border border-emerald-200 focus:outline-none focus:border-stone-400"
-                autoFocus
-              />
-              <textarea
-                value={newBody}
-                onChange={(e) => setNewBody(e.target.value)}
-                placeholder="详情..."
-                className="w-full text-xs px-2 py-1 rounded border border-emerald-200 resize-none focus:outline-none focus:border-stone-400"
-                rows={3}
-              />
-
-              {/* 时间段 */}
-              <div>
-                <button
-                  onClick={() => setAddShowSchedule(!addShowSchedule)}
-                  className="text-[11px] text-gray-600 hover:underline"
-                >
-                  📅 工作时间段 {addStart && `(已设置)`}
-                </button>
-                {addShowSchedule && (
-                  <div className="mt-1 space-y-1 bg-emerald-50 p-1.5 rounded">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-gray-600 w-10">开始</span>
-                      <input
-                        type="datetime-local"
-                        value={addStart}
-                        onChange={(e) => setAddStart(e.target.value)}
-                        className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
-                      />
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] text-gray-600 w-10">结束</span>
-                      <input
-                        type="datetime-local"
-                        value={addEnd}
-                        onChange={(e) => setAddEnd(e.target.value)}
-                        className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* 提醒 */}
-              <div>
-                <button
-                  onClick={() => setAddShowReminder(!addShowReminder)}
-                  className="text-[11px] text-gray-600 hover:underline"
-                >
-                  ⏰ 提醒 {addReminder && `(${formatReminderLabel(addReminder)})`}
-                </button>
-                {addShowReminder && (
-                  <div className="mt-1">
-                    <ReminderPicker
-                      currentIso={addReminder}
-                      onSet={(iso) => setAddReminder(iso)}
-                      onClear={() => setAddReminder("")}
-                      onClose={() => setAddShowReminder(false)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 周期 */}
-              <div>
-                <button
-                  onClick={() => setAddShowRecurrence(!addShowRecurrence)}
-                  className="text-[11px] text-gray-600 hover:underline"
-                >
-                  🔁 长期任务 {addRecurrence && `(${describeRecurrence(addRecurrence)})`}
-                </button>
-                {addShowRecurrence && (
-                  <div className="mt-1">
-                    <RecurrenceEditor
-                      value={addRecurrence}
-                      onChange={(r) => setAddRecurrence(r)}
-                      onClose={() => setAddShowRecurrence(false)}
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* 颜色 */}
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] text-gray-600">颜色：</span>
-                {(["yellow", "pink", "blue", "green", "purple"] as const).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setNewColor(c)}
-                    className={`w-5 h-5 rounded-full border-2 ${
-                      newColor === c ? "ring-2 ring-stone-400 border-emerald-300" : "border-emerald-200"
-                    } ${
-                      c === "yellow" ? "bg-yellow-100" :
-                      c === "pink" ? "bg-pink-100" :
-                      c === "blue" ? "bg-sky-100" :
-                      c === "green" ? "bg-emerald-100" :
-                      "bg-violet-100"
-                    }`}
-                  />
-                ))}
-              </div>
-
-              <div className="flex justify-end gap-1.5 pt-1">
+              <div className="sticky top-0 bg-emerald-100 px-4 py-3 flex items-center justify-between border-b border-emerald-200">
+                <span className="font-bold text-gray-800">📝 新建便签</span>
                 <button
                   onClick={() => {
                     setAdding(false);
@@ -641,20 +582,147 @@ export default function App() {
                     setAddShowRecurrence(false);
                     setAddShowSchedule(false);
                   }}
-                  className="px-3 py-1 text-xs rounded bg-emerald-100 text-gray-700"
+                  className="text-gray-500 hover:text-gray-800 text-lg"
                 >
-                  取消
-                </button>
-                <button
-                  onClick={addNote}
-                  className="px-3 py-1 text-xs rounded bg-emerald-200 text-emerald-800 font-bold"
-                >
-                  保存
+                  ✕
                 </button>
               </div>
+              <div className="space-y-1.5 p-3">
+                <input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder="标题（必填或填详情）"
+                  className="w-full text-sm font-bold px-2 py-1.5 rounded border border-emerald-200 focus:outline-none focus:border-stone-400"
+                  autoFocus
+                />
+                <textarea
+                  value={newBody}
+                  onChange={(e) => setNewBody(e.target.value)}
+                  placeholder="详情..."
+                  className="w-full text-xs px-2 py-1 rounded border border-emerald-200 resize-none focus:outline-none focus:border-stone-400"
+                  rows={3}
+                />
+
+                {/* 时间段 */}
+                <div>
+                  <button
+                    onClick={() => setAddShowSchedule(!addShowSchedule)}
+                    className="text-[11px] text-gray-600 hover:underline"
+                  >
+                    📅 工作时间段 {addStart && `(已设置)`}
+                  </button>
+                  {addShowSchedule && (
+                    <div className="mt-1 space-y-1 bg-emerald-50 p-1.5 rounded">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-gray-600 w-10">开始</span>
+                        <input
+                          type="datetime-local"
+                          value={addStart}
+                          onChange={(e) => setAddStart(e.target.value)}
+                          className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-gray-600 w-10">结束</span>
+                        <input
+                          type="datetime-local"
+                          value={addEnd}
+                          onChange={(e) => setAddEnd(e.target.value)}
+                          className="flex-1 text-[11px] rounded border border-emerald-200 px-1 py-0.5 bg-white"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 提醒 */}
+                <div>
+                  <button
+                    onClick={() => setAddShowReminder(!addShowReminder)}
+                    className="text-[11px] text-gray-600 hover:underline"
+                  >
+                    ⏰ 提醒 {addReminder && `(${formatReminderLabel(addReminder)})`}
+                  </button>
+                  {addShowReminder && (
+                    <div className="mt-1">
+                      <ReminderPicker
+                        currentIso={addReminder}
+                        onSet={(iso) => setAddReminder(iso)}
+                        onClear={() => setAddReminder("")}
+                        onClose={() => setAddShowReminder(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 周期 */}
+                <div>
+                  <button
+                    onClick={() => setAddShowRecurrence(!addShowRecurrence)}
+                    className="text-[11px] text-gray-600 hover:underline"
+                  >
+                    🔁 长期任务 {addRecurrence && `(${describeRecurrence(addRecurrence)})`}
+                  </button>
+                  {addShowRecurrence && (
+                    <div className="mt-1">
+                      <RecurrenceEditor
+                        value={addRecurrence}
+                        onChange={(r) => setAddRecurrence(r)}
+                        onClose={() => setAddShowRecurrence(false)}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* 颜色 */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-gray-600">颜色：</span>
+                  {(["yellow", "pink", "blue", "green", "purple"] as const).map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setNewColor(c)}
+                      className={`w-5 h-5 rounded-full border-2 ${
+                        newColor === c ? "ring-2 ring-stone-400 border-emerald-300" : "border-emerald-200"
+                      } ${
+                        c === "yellow" ? "bg-yellow-100" :
+                        c === "pink" ? "bg-pink-100" :
+                        c === "blue" ? "bg-sky-100" :
+                        c === "green" ? "bg-emerald-100" :
+                        "bg-violet-100"
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                <div className="flex justify-end gap-1.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setAdding(false);
+                      setNewTitle("");
+                      setNewBody("");
+                      setAddReminder("");
+                      setAddRecurrence(undefined);
+                      setAddStart("");
+                      setAddEnd("");
+                      setAddShowReminder(false);
+                      setAddShowRecurrence(false);
+                      setAddShowSchedule(false);
+                    }}
+                    className="px-3 py-1.5 text-xs rounded bg-emerald-100 text-gray-700"
+                  >
+                    取消
+                  </button>
+                  <button
+                    onClick={addNote}
+                    className="px-3 py-1.5 text-xs rounded bg-emerald-200 text-emerald-800 font-bold"
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
           </>
         )}
 

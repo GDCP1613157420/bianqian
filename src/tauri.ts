@@ -14,6 +14,22 @@ export function isTauri(): boolean {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
 
+/* 是否运行在原生 App 里（Capacitor Android / iOS） */
+export function isCapacitorApp(): boolean {
+  if (typeof window === "undefined") return false;
+  const Cap = (window as any).Capacitor;
+  if (Cap && typeof Cap.isNativePlatform === "function") {
+    try { return !!Cap.isNativePlatform(); } catch { /* ignore */ }
+  }
+  return false;
+}
+
+/* 是否移动端窄屏（用于在桌面/手机间切换部分 UI，如隐藏最小化/关闭） */
+export function isMobileWidth(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth < 520;
+}
+
 export interface PreviewWindow {
   setAlwaysOnTop(v: boolean): Promise<void>;
   minimize(): Promise<void>;
