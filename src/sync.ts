@@ -69,18 +69,39 @@ export async function pushToGist(notes: Note[], pat: string, gistId?: string): P
     };
     const resp = await gistFetch(pat, `gists/${gistIdToUse}`, "PATCH", body);
     return (resp as any).id as string;
-  } else {
-    // 新建 Gist
-    const body = {
-      description: "桌面便签数据自动同步",
-      public: false,
-      files: { [GIST_FILENAME]: { content } },
-    };
-    const resp = await gistFetch(pat, "gists", "POST", body);
-    const newId = (resp as any).id as string;
-    localStorage.setItem(GIST_ID_KEY, newId);
-    return newId;
   }
+
+  // 无本地 gistId → 搜索账户里是否已有同名 Gist，避免重复创建
+  try {
+    const gists = await gistFetch(pat, "gists?per_page=100", "GET", null) as any[];
+    const existing = gists.find(
+      (g) => g.description === "桌面便签数据自动同步" &&
+             g.files && g.files[GIST_FILENAME]
+    );
+    if (existing) {
+      // 复用已有 Gist（先 PATCH）
+      const body: Record<string, unknown> = {
+        description: "桌面便签数据自动同步",
+        files: { [GIST_FILENAME]: { content } },
+      };
+      await gistFetch(pat, `gists/${existing.id}`, "PATCH", body);
+      localStorage.setItem(GIST_ID_KEY, existing.id);
+      return existing.id;
+    }
+  } catch {
+    // 搜索失败没关系，继续创建新的
+  }
+
+  // 真的没有 → 新建 Gist
+  const body = {
+    description: "桌面便签数据自动同步",
+    public: false,
+    files: { [GIST_FILENAME]: { content } },
+  };
+  const resp = await gistFetch(pat, "gists", "POST", body);
+  const newId = (resp as any).id as string;
+  localStorage.setItem(GIST_ID_KEY, newId);
+  return newId;
 }
 
 /** 从 GitHub Gist 拉取便签（返回 Note[]，出错抛异常） */
